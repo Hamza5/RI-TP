@@ -1,0 +1,7 @@
+# Exclude everything
+*
+# Except
+!.gitignore
+!*.py
+!cacm/
+!cacm/*
