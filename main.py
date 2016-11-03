@@ -4,7 +4,7 @@ import re
 
 class CACMDocument:
     """
-    Represent a single CACM document with an ID, title and summary.
+    Represent a single CACM document with an ID, title and a summary.
     """
 
     def __init__(self, num, title, summary):
@@ -27,14 +27,14 @@ class CACMDocument:
 
 class CACMParser(collections.abc.Iterator):
     """
-    Iterator which return a CACMdocument on each call.
+    Iterator which returns a CACMDocument on each call.
     """
 
     def __init__(self, filepath):
         self.filepath = filepath
         with open(filepath) as f:
             file_content = f.read()
-        self.documents = re.split(r'\n\.I', file_content)[1:]
+        self.documents = re.split(r'^\.I', file_content, flags=re.MULTILINE)[1:]
 
     def __next__(self):
         try:
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     import sys
     cacm = CACMParser(sys.argv[1])
     element = None
+    print(next(cacm))
     for element in cacm:
         pass
     print(element)
