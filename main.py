@@ -1,5 +1,6 @@
 import collections.abc
 import re
+import csv
 
 
 class CACMDocument:
@@ -54,6 +55,44 @@ class CACMParser(collections.abc.Iterator):
 
     def __iter__(self):
         return self
+
+
+class InverseFileReader:
+    """
+    CSV based Reader for an inverse file.
+    """
+
+    def __init__(self, filepath):
+        self.path = filepath
+
+    def get_document_words_frequencies(self, document_id):
+        """
+        Return a dict containing the words of a document with their frequencies.
+        :param document_id: int representing ID of the document.
+        :return: dict of words as keys and their frequencies as values in the selected document.
+        """
+        w_f = {}
+        with open(self.path, newline='') as inv_file:
+            inverse_file_reader = csv.reader(inv_file)
+            for word_frequencies in inverse_file_reader:
+                word = word_frequencies[0]
+                frequency = float(word_frequencies[document_id])
+                if frequency > 0:  # This word exists in this document
+                    w_f[word] = frequency
+        return w_f
+
+    def get_word_documents_frequencies(self, word):
+        """
+        Return a list containing the frequencies of the word in each document.
+        :param word: str representing the word.
+        :return: list of floats.
+        """
+
+        with open(self.path, newline='') as inv_file:
+            inverse_file_reader = csv.reader(inv_file)
+            for word_frequencies in inverse_file_reader:
+                if word_frequencies[0] == word:  # The line of the word has been found
+                    return [float(x) for x in word_frequencies[1:]]
 
 
 if __name__ == '__main__':
