@@ -87,12 +87,26 @@ class InverseFileReader:
         :param word: str representing the word.
         :return: list of floats.
         """
-
         with open(self.path, newline='') as inv_file:
             inverse_file_reader = csv.reader(inv_file)
             for word_frequencies in inverse_file_reader:
                 if word_frequencies[0] == word:  # The line of the word has been found
                     return [float(x) for x in word_frequencies[1:]]
+
+    def search_query_matching_score(self, query):
+        docs_relevance = {}
+        with open(self.path, newline='') as inv_file:
+            inverse_file_reader = csv.reader(inv_file)
+            for word_frequencies in inverse_file_reader:
+                word = word_frequencies[0]
+                if word in query:
+                    frequencies = [float(x) for x in word_frequencies[1:]]
+                    for doc_id in range(1, len(frequencies)+1):
+                        try:
+                            docs_relevance[doc_id] += frequencies[doc_id-1]
+                        except KeyError:
+                            docs_relevance[doc_id] = frequencies[doc_id-1]
+        return docs_relevance
 
 
 if __name__ == '__main__':
