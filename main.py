@@ -94,6 +94,11 @@ class InverseFileReader:
                     return [float(x) for x in word_frequencies[1:]]
 
     def search_query_matching_score(self, query):
+        """
+        Return a dict containing the matching score of each relevant document.
+        :param query: list of str, each str is a word.
+        :return: dict which its keys are the IDs of the documents and its values are the relevance of each document.
+        """
         docs_relevance = {}
         with open(self.path, newline='') as inv_file:
             inverse_file_reader = csv.reader(inv_file)
@@ -105,7 +110,8 @@ class InverseFileReader:
                         try:
                             docs_relevance[doc_id] += frequencies[doc_id-1]
                         except KeyError:
-                            docs_relevance[doc_id] = frequencies[doc_id-1]
+                            if frequencies[doc_id-1] > 0:
+                                docs_relevance[doc_id] = frequencies[doc_id-1]
         return docs_relevance
 
 
