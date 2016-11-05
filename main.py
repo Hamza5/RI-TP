@@ -57,9 +57,9 @@ class CACMParser(collections.abc.Iterator):
         return self
 
 
-class InverseFileReader:
+class InverseFile:
     """
-    CSV based Reader for an inverse file.
+    CSV based reader for an inverse file.
     """
 
     def __init__(self, filepath):
@@ -75,6 +75,7 @@ class InverseFileReader:
         :param document_id: int representing ID of the document.
         :return: dict of words as keys and their frequencies as values in the selected document.
         """
+        assert isinstance(document_id, int)
         w_f = {}
         for word, frequencies in self.words_frequencies.items():
             frequency = frequencies[document_id-1]
@@ -88,6 +89,7 @@ class InverseFileReader:
         :param word: str representing the word.
         :return: list of floats.
         """
+        assert isinstance(word, str)
         return self.words_frequencies[word]
 
     def search_query_matching_score(self, query):
@@ -96,6 +98,7 @@ class InverseFileReader:
         :param query: list of str, each str is a word.
         :return: dict which its keys are the IDs of the documents and its values are the relevance of each document.
         """
+        assert isinstance(query, list) and all([isinstance(x, str) for x in query])  # Type checking
         docs_relevance = {}
         for word in query:
             word_frequencies = self.get_word_documents_frequencies(word)
@@ -107,6 +110,87 @@ class InverseFileReader:
                         docs_relevance[doc_id] = word_frequencies[doc_id - 1]
         return docs_relevance
 
+    class Negation:
+        """
+        Represent a negated word, conjunction or disjunction.
+        """
+
+        def __init__(self, term):
+            assert any((isinstance(term, str), isinstance(term, list), isinstance(term, tuple)))
+            self.term = term
+
+    def boolean_similarity_disjunctive(self, query, document_id):
+        """
+        Return the boolean similarity between a disjunctive complex_query and a document.
+        :param query: list of str or tuples representing words or conjunctions.
+        :param document_id: int representing the ID of the document.
+        :return: True if one of the words or conjunctions exists in the document, False otherwise.
+        """
+        assert isinstance(query, list)  # Type checking
+        for word in query:
+            assert any((isinstance(word, str), isinstance(word, tuple), isinstance(word, self.Negation)))  # Type checking
+            if isinstance(word, tuple):  # It is a conjunction
+                if self.boolean_similarity_conjunctive(word, document_id):
+                    return True
+            elif isinstance(word, self.Negation):
+                if self.boolean_similarity_negated(word, document_id):
+                    return True
+            elif word in self.get_document_words_frequencies(document_id).keys():
+                return True
+        return False
+
+    def boolean_similarity_conjunctive(self, query, document_id):
+        """
+        Return the boolean similarity between a conjunctive complex_query and a document.
+        :param query: tuple of str or lists representing words or disjunctions.
+        :param document_id: int representing the ID of the document.
+        :return: True if all of the words or disjunctions exists in the document, False otherwise.
+        """
+        assert isinstance(query, tuple)  # Type checking
+        for word in query:
+            assert any((isinstance(word, str), isinstance(word, list), isinstance(word, self.Negation)))  # Type checking
+            if isinstance(word, list):  # It is a disjunction
+                if not self.boolean_similarity_disjunctive(word, document_id):
+                    return False
+            elif isinstance(word, self.Negation):
+                if not self.boolean_similarity_negated(word, document_id):
+                    return False
+            elif word not in self.get_document_words_frequencies(document_id).keys():
+                return False
+        return True
+
+    def boolean_similarity_negated(self, query, document_id):
+        """
+        Return the boolean similarity between a negated term and a document.
+        :param query: Negation of a word, conjunction or disjunction.
+        :param document_id: int representing the ID of the document.
+        :return: True if the term doesn't exist in the document, False otherwise.
+        """
+        assert isinstance(query, self.Negation)  # Type checking
+        if isinstance(query.term, tuple):
+            return not self.boolean_similarity_conjunctive(query.term, document_id)
+        elif isinstance(query.term, list):
+            return not self.boolean_similarity_disjunctive(query.term, document_id)
+        else:
+            return query.term not in self.get_document_words_frequencies(document_id).keys()
+
+    def search_query_boolean(self, complex_boolean_query):
+        """
+        Return a list of IDs of the relevant documents to a boolean query using the boolean search model.
+        :param complex_boolean_query: list or tuple representing the query.
+        :return: list of IDs of the relevant documents.
+        """
+        assert isinstance(complex_boolean_query, list) or isinstance(complex_boolean_query, tuple)
+        number_of_docs = len(next(iter(self.words_frequencies.values())))
+        relevant_docs = []
+        for doc_id in range(1, number_of_docs+1):
+            if isinstance(complex_boolean_query, list):
+                if self.boolean_similarity_disjunctive(complex_boolean_query, doc_id):
+                    relevant_docs.append(doc_id)
+            else:
+                if self.boolean_similarity_conjunctive(complex_boolean_query, doc_id):
+                    relevant_docs.append(doc_id)
+        return relevant_docs
 
 if __name__ == '__main__':
     import sys
