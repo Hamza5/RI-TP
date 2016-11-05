@@ -63,7 +63,11 @@ class InverseFileReader:
     """
 
     def __init__(self, filepath):
-        self.path = filepath
+        with open(filepath, newline='') as inv_file:
+            inverse_file_reader = csv.reader(inv_file)
+            self.words_frequencies = {}
+            for word_frequencies in inverse_file_reader:
+                self.words_frequencies[word_frequencies[0]] = [float(x) for x in word_frequencies[1:]]
 
     def get_document_words_frequencies(self, document_id):
         """
@@ -72,13 +76,10 @@ class InverseFileReader:
         :return: dict of words as keys and their frequencies as values in the selected document.
         """
         w_f = {}
-        with open(self.path, newline='') as inv_file:
-            inverse_file_reader = csv.reader(inv_file)
-            for word_frequencies in inverse_file_reader:
-                word = word_frequencies[0]
-                frequency = float(word_frequencies[document_id])
-                if frequency > 0:  # This word exists in this document
-                    w_f[word] = frequency
+        for word, frequencies in self.words_frequencies.items():
+            frequency = frequencies[document_id-1]
+            if frequency > 0:  # This word exists in this document
+                w_f[word] = frequency
         return w_f
 
     def get_word_documents_frequencies(self, word):
@@ -87,11 +88,7 @@ class InverseFileReader:
         :param word: str representing the word.
         :return: list of floats.
         """
-        with open(self.path, newline='') as inv_file:
-            inverse_file_reader = csv.reader(inv_file)
-            for word_frequencies in inverse_file_reader:
-                if word_frequencies[0] == word:  # The line of the word has been found
-                    return [float(x) for x in word_frequencies[1:]]
+        return self.words_frequencies[word]
 
     def search_query_matching_score(self, query):
         """
@@ -100,18 +97,14 @@ class InverseFileReader:
         :return: dict which its keys are the IDs of the documents and its values are the relevance of each document.
         """
         docs_relevance = {}
-        with open(self.path, newline='') as inv_file:
-            inverse_file_reader = csv.reader(inv_file)
-            for word_frequencies in inverse_file_reader:
-                word = word_frequencies[0]
-                if word in query:
-                    frequencies = [float(x) for x in word_frequencies[1:]]
-                    for doc_id in range(1, len(frequencies)+1):
-                        try:
-                            docs_relevance[doc_id] += frequencies[doc_id-1]
-                        except KeyError:
-                            if frequencies[doc_id-1] > 0:
-                                docs_relevance[doc_id] = frequencies[doc_id-1]
+        for word in query:
+            word_frequencies = self.get_word_documents_frequencies(word)
+            for doc_id in range(1, len(word_frequencies)+1):
+                try:
+                    docs_relevance[doc_id] += word_frequencies[doc_id-1]
+                except KeyError:
+                    if word_frequencies[doc_id-1] > 0:
+                        docs_relevance[doc_id] = word_frequencies[doc_id - 1]
         return docs_relevance
 
 
