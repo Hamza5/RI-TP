@@ -41,7 +41,6 @@ class INVERSEDFile:
             for elemDict in d.keys():
                 if(d.get(elemDict).get(elem, 0)!=0):
                     StringWrite = StringWrite +str(elemDict) +': '+ str(d.get(elemDict).get(elem,0))+', '
-                    
             StringWrite = StringWrite[:-2]
             StringWrite = StringWrite+']\n'
             file.write(StringWrite)
