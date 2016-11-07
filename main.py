@@ -1,6 +1,7 @@
 import collections.abc
 import re
 import csv
+from pyparsing import Word, Literal, alphanums, ZeroOrMore
 
 
 class CACMDocument:
@@ -191,6 +192,43 @@ class InverseFile:
                 if self.boolean_similarity_conjunctive(complex_boolean_query, doc_id):
                     relevant_docs.append(doc_id)
         return relevant_docs
+
+
+class QueryParser:
+    """
+    A parser which transform a query written as str to the appropriate format.
+    """
+
+    @staticmethod
+    def simple_normalised(query):
+        assert isinstance(query, str)
+        query = query.lower()  # Convert to lowercase
+        query = re.sub(r'\s{2,}', ' ', query)  # Remove extra spaces
+        return query
+
+    @staticmethod
+    def parse_simple_query(query):
+        assert isinstance(query, str)
+        normalised_query = QueryParser.simple_normalised(query)
+        return normalised_query.split(' ')
+
+    @staticmethod
+    def parse_boolean_query(query):
+        assert isinstance(query, str)
+        query = QueryParser.simple_normalised(query)
+        and_ = Literal('&')
+        or_ = Literal('|')
+        not_ = Literal('~')
+        open_par = Literal('(').suppress()
+        close_par = Literal(')').suppress()
+        word = Word(alphanums)
+        conjunction = word + and_ + word
+        disjunction = word + or_ + word
+        negation = not_ + word
+        expr = conjunction | disjunction | negation | word
+        expr_parentheses = open_par + expr + close_par | expr
+        total_expr = ZeroOrMore(expr_parentheses + (and_ | or_)) + expr_parentheses
+        return total_expr.parseString(query, parseAll=True)
 
 if __name__ == '__main__':
     import sys
