@@ -35,6 +35,7 @@ class INVERSEDFile:
         setKeys =set()
         for key in d:
             setKeys.update(set(d[key].keys()))
+        setKeys = sorted(setKeys)
         file = open("InverseFile2.txt", "w")
         """
         this will be remplaced 
@@ -55,13 +56,18 @@ class INVERSEDFile:
         self.cacm = cacm    
         self.DOCCalcul()
     def DocFreq(self, cacmElem):
-        listText = self.DeleteSpecCar(self.DeleteStopList(cacmElem.get_title())).lower().split()
-        listText.extend(self.DeleteSpecCar(self.DeleteStopList(cacmElem.get_summary())).lower().split())
+        listText = self.DeleteStopList(self.DeleteSpecCar(cacmElem.get_title())).lower().split()
+        listText.extend(self.DeleteStopList(self.DeleteSpecCar(cacmElem.get_summary())).lower().split())
         return Counter(listText)
         
     def DeleteStopList(self, text):
         self.cachedStopWords = {'ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there', 'about', 'once', 'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be', 'some', 'for', 'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off', 'is', 's', 'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below', 'are', 'we', 'these', 'your', 'his', 'through', 'don', 'nor', 'me', 'were', 'her', 'more', 'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both', 'up', 'to', 'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them', 'same', 'and', 'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that', 'because', 'what', 'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he', 'you', 'herself', 'has', 'just', 'where', 'too', 'only', 'myself', 'which', 'those', 'i', 'after', 'few', 'whom', 't', 'being', 'if', 'theirs', 'my', 'against', 'a', 'by', 'doing', 'it', 'how', 'further', 'was', 'here', 'than'}        
-        textNonstop = ' '.join([word for word in text.split() if word not in self.cachedStopWords])
+        textNonstop = ' '.join([word for word in text.lower().split() if word not in self.cachedStopWords])
+
+#        textNonstop= ''        
+#        for w in text.split():
+#            if w.lower() not in self.cachedStopWords:
+#                textNonstop+=' '+w
         return textNonstop
     def DeleteSpecCar(self, text):
         pattern=re.compile("[^\w']")
