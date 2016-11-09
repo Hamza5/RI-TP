@@ -1,8 +1,7 @@
 import collections.abc
 import re
 from collections import Counter
-import csv
-from pyparsing import Word, Literal, alphanums, ZeroOrMore
+import pickle
 
 
 class CACMDocument:
@@ -27,46 +26,23 @@ class CACMDocument:
     def get_summary(self):
         return self.W
 
-class INVERSEDFile:
-    def DOCCalcul(self):
-        element = None
-        d={}
-        for element in cacm:
-            d[element.get_document_number()]=self.DocFreq(element)
-        setKeys =set()
-        for key in d:
-            setKeys.update(set(d[key].keys()))
-        file = open("InverseFile2.txt", "w")
-        """
-        this will be remplaced
-        """
-        for elem in setKeys:
-            StringWrite = elem + ' [ '
-            for elemDict in d.keys():
-                if(d.get(elemDict).get(elem, 0)!=0):
-                    StringWrite = StringWrite +str(elemDict) +': '+ str(d.get(elemDict).get(elem,0))+', '
-            StringWrite = StringWrite[:-2]
-            StringWrite = StringWrite+']\n'
-            file.write(StringWrite)
-        file.close
-        """
-        until this
-        """
-    def __init__(self, cacm):
-        self.cacm = cacm
-        self.DOCCalcul()
-    def DocFreq(self, cacmElem):
-        listText = self.DeleteSpecCar(self.DeleteStopList(cacmElem.get_title())).lower().split()
-        listText.extend(self.DeleteSpecCar(self.DeleteStopList(cacmElem.get_summary())).lower().split())
-        return Counter(listText)
 
-    def DeleteStopList(self, text):
-        self.cachedStopWords = {'ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there', 'about', 'once', 'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be', 'some', 'for', 'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off', 'is', 's', 'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below', 'are', 'we', 'these', 'your', 'his', 'through', 'don', 'nor', 'me', 'were', 'her', 'more', 'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both', 'up', 'to', 'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them', 'same', 'and', 'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that', 'because', 'what', 'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he', 'you', 'herself', 'has', 'just', 'where', 'too', 'only', 'myself', 'which', 'those', 'i', 'after', 'few', 'whom', 't', 'being', 'if', 'theirs', 'my', 'against', 'a', 'by', 'doing', 'it', 'how', 'further', 'was', 'here', 'than'}
-        textNonstop = ' '.join([word for word in text.split() if word not in self.cachedStopWords])
-        return textNonstop
-    def DeleteSpecCar(self, text):
-        pattern=re.compile("[^\w']")
-        return pattern.sub(' ', text)
+class InverseFileWriter:
+
+    def __init__(self, cacm, inverse_file_name):
+        self.cacm = cacm
+        self.inv_filename = inverse_file_name
+        d = {}
+        for element in self.cacm:
+            d[element.get_document_number()] = dict(self.document_frequencies(element))
+        with open(self.inv_filename, "wb") as file:
+            pickle.dump(d, file)
+
+    def document_frequencies(self, cacmElem):
+        normalized_title = QueryPreprocessing.normalize_simple(cacmElem.get_title())
+        normalized_summary = QueryPreprocessing.normalize_simple(cacmElem.get_summary())
+        all_text = normalized_title + ' ' + normalized_summary
+        return Counter(QueryPreprocessing.tokenize_simple(all_text))
 
 
 class CACMParser(collections.abc.Iterator):
@@ -100,17 +76,24 @@ class CACMParser(collections.abc.Iterator):
         return self
 
 
-class InverseFile:
+class InverseFileReader:
     """
-    CSV based reader for an inverse file.
+    Pickle based reader for an inverse file.
     """
 
     def __init__(self, filepath):
-        with open(filepath, newline='') as inv_file:
-            inverse_file_reader = csv.reader(inv_file)
-            self.words_frequencies = {}
-            for word_frequencies in inverse_file_reader:
-                self.words_frequencies[word_frequencies[0]] = [float(x) for x in word_frequencies[1:]]
+        with open(filepath, 'rb') as inv_file:
+            self.docs_words_frequencies = pickle.load(inv_file)
+        self.word_regexp = re.compile(r'\b\w+\b')
+
+    def get_documents_count(self):  # Number of documents in the inverse file.
+        return len(self.docs_words_frequencies)
+
+    def get_words_count(self):  # Number of words in the inverse file.
+        return len(set(word for words_frequencies in self.docs_words_frequencies.values() for word in words_frequencies.keys()))
+
+    def __len__(self):
+        return self.get_words_count()
 
     def get_document_words_frequencies(self, document_id):
         """
@@ -120,164 +103,135 @@ class InverseFile:
         """
         assert isinstance(document_id, int)
         w_f = {}
-        for word, frequencies in self.words_frequencies.items():
-            frequency = frequencies[document_id-1]
-            if frequency > 0:  # This word exists in this document
+        for word, frequency in self.docs_words_frequencies[document_id].items():
+            try:
+                w_f[word] += frequency
+            except KeyError:
                 w_f[word] = frequency
         return w_f
 
     def get_word_documents_frequencies(self, word):
         """
-        Return a list containing the frequencies of the word in each document.
+        Return a dict containing the frequencies of the word in each document.
         :param word: str representing the word.
-        :return: list of floats.
+        :return: dict of document IDs (int) as keys and the frequencies (float) as values.
         """
         assert isinstance(word, str)
-        return self.words_frequencies[word]
+        docs = {}
+        for doc_id in self.docs_words_frequencies.keys():
+            for w, frequency in self.docs_words_frequencies[doc_id].items():
+                if w == word:
+                    try:
+                        docs[doc_id] += frequency
+                    except KeyError:
+                        docs[doc_id] = frequency
+        return docs
 
     def search_query_matching_score(self, query):
         """
         Return a dict containing the matching score of each relevant document.
-        :param query: list of str, each str is a word.
+        :param query: str of words.
         :return: dict which its keys are the IDs of the documents and its values are the relevance of each document.
         """
-        assert isinstance(query, list) and all([isinstance(x, str) for x in query])  # Type checking
+        assert isinstance(query, str)
         docs_relevance = {}
-        for word in query:
+        for word in QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query)):
             word_frequencies = self.get_word_documents_frequencies(word)
-            for doc_id in range(1, len(word_frequencies)+1):
+            for doc_id in word_frequencies.keys():
                 try:
-                    docs_relevance[doc_id] += word_frequencies[doc_id-1]
+                    docs_relevance[doc_id] += word_frequencies[doc_id]
                 except KeyError:
-                    if word_frequencies[doc_id-1] > 0:
-                        docs_relevance[doc_id] = word_frequencies[doc_id - 1]
+                    if word_frequencies[doc_id] > 0:
+                        docs_relevance[doc_id] = word_frequencies[doc_id]
         return docs_relevance
 
-    class Negation:
-        """
-        Represent a negated word, conjunction or disjunction.
-        """
-
-        def __init__(self, term):
-            assert any((isinstance(term, str), isinstance(term, list), isinstance(term, tuple)))
-            self.term = term
-
-    def boolean_similarity_disjunctive(self, query, document_id):
-        """
-        Return the boolean similarity between a disjunctive complex_query and a document.
-        :param query: list of str or tuples representing words or conjunctions.
-        :param document_id: int representing the ID of the document.
-        :return: True if one of the words or conjunctions exists in the document, False otherwise.
-        """
-        assert isinstance(query, list)  # Type checking
-        for word in query:
-            assert any((isinstance(word, str), isinstance(word, tuple), isinstance(word, self.Negation)))  # Type checking
-            if isinstance(word, tuple):  # It is a conjunction
-                if self.boolean_similarity_conjunctive(word, document_id):
-                    return True
-            elif isinstance(word, self.Negation):
-                if self.boolean_similarity_negated(word, document_id):
-                    return True
-            elif word in self.get_document_words_frequencies(document_id).keys():
-                return True
-        return False
-
-    def boolean_similarity_conjunctive(self, query, document_id):
-        """
-        Return the boolean similarity between a conjunctive complex_query and a document.
-        :param query: tuple of str or lists representing words or disjunctions.
-        :param document_id: int representing the ID of the document.
-        :return: True if all of the words or disjunctions exists in the document, False otherwise.
-        """
-        assert isinstance(query, tuple)  # Type checking
-        for word in query:
-            assert any((isinstance(word, str), isinstance(word, list), isinstance(word, self.Negation)))  # Type checking
-            if isinstance(word, list):  # It is a disjunction
-                if not self.boolean_similarity_disjunctive(word, document_id):
-                    return False
-            elif isinstance(word, self.Negation):
-                if not self.boolean_similarity_negated(word, document_id):
-                    return False
-            elif word not in self.get_document_words_frequencies(document_id).keys():
-                return False
-        return True
-
-    def boolean_similarity_negated(self, query, document_id):
-        """
-        Return the boolean similarity between a negated term and a document.
-        :param query: Negation of a word, conjunction or disjunction.
-        :param document_id: int representing the ID of the document.
-        :return: True if the term doesn't exist in the document, False otherwise.
-        """
-        assert isinstance(query, self.Negation)  # Type checking
-        if isinstance(query.term, tuple):
-            return not self.boolean_similarity_conjunctive(query.term, document_id)
-        elif isinstance(query.term, list):
-            return not self.boolean_similarity_disjunctive(query.term, document_id)
-        else:
-            return query.term not in self.get_document_words_frequencies(document_id).keys()
-
-    def search_query_boolean(self, complex_boolean_query):
+    def search_query_boolean(self, boolean_query):
         """
         Return a list of IDs of the relevant documents to a boolean query using the boolean search model.
-        :param complex_boolean_query: list or tuple representing the query.
+        :param boolean_query: str representing the query.
         :return: list of IDs of the relevant documents.
         """
-        assert isinstance(complex_boolean_query, list) or isinstance(complex_boolean_query, tuple)
-        number_of_docs = len(next(iter(self.words_frequencies.values())))
+        assert isinstance(boolean_query, str)  # Type checking
         relevant_docs = []
-        for doc_id in range(1, number_of_docs+1):
-            if isinstance(complex_boolean_query, list):
-                if self.boolean_similarity_disjunctive(complex_boolean_query, doc_id):
-                    relevant_docs.append(doc_id)
-            else:
-                if self.boolean_similarity_conjunctive(complex_boolean_query, doc_id):
-                    relevant_docs.append(doc_id)
+        for doc_id in self.docs_words_frequencies.keys():
+            relevant = eval(
+                QueryPreprocessing.replace_boolean_operators(
+                    re.sub(
+                        self.word_regexp,
+                        lambda word: str(word.group() in self.get_document_words_frequencies(doc_id)),
+                        QueryPreprocessing.normalize_boolean(boolean_query)
+                    )
+                )
+            )
+            if relevant:
+                relevant_docs.append(doc_id)
         return relevant_docs
 
 
-class QueryParser:
-    """
-    A parser which transform a query written as str to the appropriate format.
-    """
+class QueryPreprocessing:
+
+    eliminate_regexp = re.compile(r"[^\w'\s]+")
+    eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
+    token_simple_regexp = re.compile(r"\s+")
+    token_boolean_regexp = re.compile(r"\s+|([&|~()])")
+    stop_list = (
+        'ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there', 'about', 'once',
+        'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be', 'some', 'for',
+        'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off', 'is', 's',
+        'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below',
+        'are', 'we', 'these', 'your', 'his', 'through', 'don', 'nor', 'me', 'were', 'her',
+        'more', 'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both',
+        'up', 'to', 'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them',
+        'same', 'and', 'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that',
+        'because', 'what', 'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he',
+        'you', 'herself', 'has', 'just', 'where', 'too', 'only', 'myself', 'which', 'those',
+        'i', 'after', 'few', 'whom', 't', 'being', 'if', 'theirs', 'my', 'against', 'a', 'by',
+        'doing', 'it', 'how', 'further', 'was', 'here', 'than'
+    )
 
     @staticmethod
-    def simple_normalised(query):
+    def normalize_simple(query):
         assert isinstance(query, str)
-        query = query.lower()  # Convert to lowercase
-        query = re.sub(r'\s{2,}', ' ', query)  # Remove extra spaces
+        query = re.sub(QueryPreprocessing.eliminate_regexp, ' ', query.lower())
+        query = ' '.join(
+            w for w in QueryPreprocessing.tokenize_simple(query)
+            if w not in QueryPreprocessing.stop_list
+        )
         return query
 
     @staticmethod
-    def parse_simple_query(query):
+    def normalize_boolean(query):
         assert isinstance(query, str)
-        normalised_query = QueryParser.simple_normalised(query)
-        return normalised_query.split(' ')
+        query = re.sub(QueryPreprocessing.eliminate_boolean_regexp, ' ', query.lower())
+        query = ' '.join(
+            w for w in QueryPreprocessing.tokenize_boolean(query)
+            if w not in QueryPreprocessing.stop_list
+        )
+        return query
 
     @staticmethod
-    def parse_boolean_query(query):
+    def tokenize_simple(query):
         assert isinstance(query, str)
-        query = QueryParser.simple_normalised(query)
-        and_ = Literal('&')
-        or_ = Literal('|')
-        not_ = Literal('~')
-        open_par = Literal('(').suppress()
-        close_par = Literal(')').suppress()
-        word = Word(alphanums)
-        conjunction = word + and_ + word
-        disjunction = word + or_ + word
-        negation = not_ + word
-        expr = conjunction | disjunction | negation | word
-        expr_parentheses = open_par + expr + close_par | expr
-        total_expr = ZeroOrMore(expr_parentheses + (and_ | or_)) + expr_parentheses
-        return total_expr.parseString(query, parseAll=True)
+        return [w for w in re.split(QueryPreprocessing.token_simple_regexp, query) if w]
+
+    @staticmethod
+    def tokenize_boolean(query):
+        assert isinstance(query, str)
+        return [w for w in re.split(QueryPreprocessing.token_boolean_regexp, query) if w]
+
+    @staticmethod
+    def replace_boolean_operators(boolean_query):
+        assert isinstance(boolean_query, str)
+        return boolean_query.replace('&', ' and ').replace('|', ' or ').replace('~', ' not ')
+
 
 if __name__ == '__main__':
     import sys
     cacm = CACMParser(sys.argv[1])
-#    element = None
-#    print(next(cacm))
-#    for element in cacm:
-#        pass
-#    print(element)
-    INVERSEDFile(cacm)
+    filename = 'index.bin'
+    # inv_writer = INVERSEDFile(cacm, filename)
+    inv_reader = InverseFileReader(filename)
+    # print(QueryPreprocessing.normalize_boolean('(Me with him | Gwen and me), are going to Charles'))
+    # print(QueryPreprocessing.normalize_simple('((Me) with him | (Gwen) and me), are going to Charles'))
+    print(inv_reader.search_query_matching_score('power user freedom'))
+    print(inv_reader.search_query_boolean('power & (user | freedom)'))
