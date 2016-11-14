@@ -168,6 +168,36 @@ class InverseFileReader:
                 relevant_docs.append(doc_id)
         return relevant_docs
 
+    def search_query_vector(self, query, model):
+        """
+        Return a dict of documents IDs with the corresponding similarities.
+        :param query: str representing the query.
+        :param model: str representing which vector model is used.
+        :return: dict whose its keys are the documents IDs and the values are the similarities.
+        """
+        assert isinstance(query, str)
+        assert model in ('inner_product', 'dice', 'cos', 'jaccard')
+        docs_relevance = {}
+        query_words = set(QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query)))
+        for doc_id in self.docs_words_frequencies.keys():
+            words_frequencies = self.get_document_words_frequencies(doc_id)
+            similarity = len(set(words_frequencies.keys()) & query_words)
+            if similarity > 0:
+                docs_relevance[doc_id] = similarity
+        if model == 'dice':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] = 2 * docs_relevance[doc_id] / (
+                    len(query_words) + len(self.docs_words_frequencies[doc_id])
+                )
+        elif model == 'cos':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] /= len(query_words)**(1/2) * len(self.docs_words_frequencies[doc_id])**(1/2)
+        elif model == 'jaccard':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] /= len(query_words) + len(self.docs_words_frequencies[doc_id])\
+                                          - docs_relevance[doc_id]
+        return docs_relevance
+
 
 class QueryPreprocessing:
 
@@ -230,9 +260,15 @@ if __name__ == '__main__':
     import sys
     cacm = CACMParser(sys.argv[1])
     filename = 'index.bin'
-    inv_writer = InverseFileWriter(cacm, filename)
+    # inv_writer = InverseFileWriter(cacm, filename)
     inv_reader = InverseFileReader(filename)
-    # print(QueryPreprocessing.normalize_boolean('(Me with him | Gwen and me), are going to Charles'))
-    # print(QueryPreprocessing.normalize_simple('((Me) with him | (Gwen) and me), are going to Charles'))
-    print(inv_reader.search_query_matching_score('Software of development or design'))
-    print(inv_reader.search_query_boolean('(Software of) & (development | design)'))
+    test_query = 'User experience and Software engineering'
+    results = inv_reader.search_query_vector(test_query, 'inner_product')
+    print(sorted(results, key=lambda item: results[item]))
+    results = inv_reader.search_query_vector(test_query, 'dice')
+    print(sorted(results, key=lambda item: results[item]))
+    results = inv_reader.search_query_vector(test_query, 'cos')
+    print(sorted(results, key=lambda item: results[item]))
+    results = inv_reader.search_query_vector(test_query, 'jaccard')
+    print(sorted(results, key=lambda item: results[item]))
+
