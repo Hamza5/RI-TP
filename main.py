@@ -274,7 +274,7 @@ if __name__ == '__main__':
     import sys
     cacm = CACMParser(sys.argv[1])
     filename = 'index.bin'
-    # inv_writer = INVERSEDFile(cacm, filename)
+    inv_writer = INVERSEDFile(cacm, filename)
     inv_reader = InverseFileReader(filename)
     # print(QueryPreprocessing.normalize_boolean('(Me with him | Gwen and me), are going to Charles'))
     # print(QueryPreprocessing.normalize_simple('((Me) with him | (Gwen) and me), are going to Charles'))
