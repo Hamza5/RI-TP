@@ -2,6 +2,7 @@ import collections.abc
 import re
 from collections import Counter
 import pickle
+import os.path
 
 
 class CACMDocument:
@@ -26,50 +27,6 @@ class CACMDocument:
     def get_summary(self):
         return self.W
 
-class INVERSEDFile:
-    def DOCCalcul(self):  
-        element = None
-        d={}
-        for element in cacm:
-            d[element.get_document_number()]=self.DocFreq(element)
-        setKeys =set()
-        for key in d:
-            setKeys.update(set(d[key].keys()))
-        setKeys = sorted(setKeys)
-        file = open("InverseFile2.txt", "w")
-        """
-        this will be remplaced 
-        """
-        for elem in setKeys:
-            StringWrite = elem + ' [ '
-            for elemDict in d.keys():
-                if(d.get(elemDict).get(elem, 0)!=0):
-                    StringWrite = StringWrite +str(elemDict) +': '+ str(d.get(elemDict).get(elem,0))+', '
-            StringWrite = StringWrite[:-2]
-            StringWrite = StringWrite+']\n'
-            file.write(StringWrite)
-        file.close
-        """
-        until this
-        """
-    def __init__(self, cacm):
-        self.cacm = cacm    
-        self.DOCCalcul()
-    def DocFreq(self, cacmElem):
-        listText = self.DeleteStopList(self.DeleteSpecCar(cacmElem.get_title())).lower().split()
-        listText.extend(self.DeleteStopList(self.DeleteSpecCar(cacmElem.get_summary())).lower().split())
-        return Counter(listText)
-        
-    def DeleteStopList(self, text):
-        self.cachedStopWords = {'ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there', 'about', 'once', 'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be', 'some', 'for', 'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off', 'is', 's', 'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below', 'are', 'we', 'these', 'your', 'his', 'through', 'don', 'nor', 'me', 'were', 'her', 'more', 'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both', 'up', 'to', 'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them', 'same', 'and', 'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that', 'because', 'what', 'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he', 'you', 'herself', 'has', 'just', 'where', 'too', 'only', 'myself', 'which', 'those', 'i', 'after', 'few', 'whom', 't', 'being', 'if', 'theirs', 'my', 'against', 'a', 'by', 'doing', 'it', 'how', 'further', 'was', 'here', 'than'}        
-        textNonstop = ' '.join([word for word in text.lower().split() if word not in self.cachedStopWords])
-        return textNonstop
-    def DeleteSpecCar(self, text):
-        pattern=re.compile("[^\w']")
-        return pattern.sub(' ', text)
-
-        
-
 
 class InverseFileWriter:
 
@@ -82,12 +39,12 @@ class InverseFileWriter:
         with open(self.inv_filename, "wb") as file:
             pickle.dump(d, file)
 
-    def document_frequencies(self, cacmElem):
+    @staticmethod
+    def document_frequencies(cacmElem):
         normalized_title = QueryPreprocessing.normalize_simple(cacmElem.get_title())
         normalized_summary = QueryPreprocessing.normalize_simple(cacmElem.get_summary())
         all_text = normalized_title + ' ' + normalized_summary
         return Counter(QueryPreprocessing.tokenize_simple(all_text))
-
 
 
 class CACMParser(collections.abc.Iterator):
@@ -212,6 +169,36 @@ class InverseFileReader:
                 relevant_docs.append(doc_id)
         return relevant_docs
 
+    def search_query_vector(self, query, model):
+        """
+        Return a dict of documents IDs with the corresponding similarities.
+        :param query: str representing the query.
+        :param model: str representing which vector model is used.
+        :return: dict whose its keys are the documents IDs and the values are the similarities.
+        """
+        assert isinstance(query, str)
+        assert model in ('inner_product', 'dice', 'cos', 'jaccard')
+        docs_relevance = {}
+        query_words = set(QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query)))
+        for doc_id in self.docs_words_frequencies.keys():
+            words_frequencies = self.get_document_words_frequencies(doc_id)
+            similarity = len(set(words_frequencies.keys()) & query_words)
+            if similarity > 0:
+                docs_relevance[doc_id] = similarity
+        if model == 'dice':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] = 2 * docs_relevance[doc_id] / (
+                    len(query_words) + len(self.docs_words_frequencies[doc_id])
+                )
+        elif model == 'cos':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] /= len(query_words)**(1/2) * len(self.docs_words_frequencies[doc_id])**(1/2)
+        elif model == 'jaccard':
+            for doc_id in docs_relevance.keys():
+                docs_relevance[doc_id] /= len(query_words) + len(self.docs_words_frequencies[doc_id])\
+                                          - docs_relevance[doc_id]
+        return docs_relevance
+
 
 class QueryPreprocessing:
 
@@ -219,20 +206,8 @@ class QueryPreprocessing:
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
-    stop_list = (
-        'ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there', 'about', 'once',
-        'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be', 'some', 'for',
-        'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off', 'is', 's',
-        'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below',
-        'are', 'we', 'these', 'your', 'his', 'through', 'don', 'nor', 'me', 'were', 'her',
-        'more', 'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both',
-        'up', 'to', 'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them',
-        'same', 'and', 'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that',
-        'because', 'what', 'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he',
-        'you', 'herself', 'has', 'just', 'where', 'too', 'only', 'myself', 'which', 'those',
-        'i', 'after', 'few', 'whom', 't', 'being', 'if', 'theirs', 'my', 'against', 'a', 'by',
-        'doing', 'it', 'how', 'further', 'was', 'here', 'than'
-    )
+    with open(os.path.join('cacm', 'common_words')) as stop_file:
+        stop_list = [w.rstrip('\r\n') for w in stop_file]
 
     @staticmethod
     def normalize_simple(query):
@@ -274,9 +249,9 @@ if __name__ == '__main__':
     import sys
     cacm = CACMParser(sys.argv[1])
     filename = 'index.bin'
-    inv_writer = INVERSEDFile(cacm, filename)
+    # inv_writer = InverseFileWriter(cacm, filename)
+
     inv_reader = InverseFileReader(filename)
-    # print(QueryPreprocessing.normalize_boolean('(Me with him | Gwen and me), are going to Charles'))
-    # print(QueryPreprocessing.normalize_simple('((Me) with him | (Gwen) and me), are going to Charles'))
-    print(inv_reader.search_query_matching_score('power user freedom'))
-    print(inv_reader.search_query_boolean('power & (user | freedom)'))
+    test_query = 'User experience and Software engineering'
+    print(QueryPreprocessing.normalize_simple(test_query))
+
