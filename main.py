@@ -3,6 +3,7 @@ import re
 from collections import Counter
 import pickle
 from os.path import join, dirname
+from nltk import PorterStemmer
 
 
 class CACMDocument:
@@ -237,6 +238,7 @@ class QueryPreprocessing:
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
+    stemmer = PorterStemmer()
     with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
         stop_list = [w.rstrip('\r\n') for w in stop_file]
 
@@ -245,7 +247,7 @@ class QueryPreprocessing:
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_regexp, ' ', query.lower())
         query = ' '.join(
-            w for w in QueryPreprocessing.tokenize_simple(query)
+            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_simple(query)
             if w not in QueryPreprocessing.stop_list
         )
         return query
@@ -255,7 +257,7 @@ class QueryPreprocessing:
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_boolean_regexp, ' ', query.lower())
         query = ' '.join(
-            w for w in QueryPreprocessing.tokenize_boolean(query)
+            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_boolean(query)
             if w not in QueryPreprocessing.stop_list
         )
         return query
@@ -280,5 +282,5 @@ if __name__ == '__main__':
     cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
     inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
     inv_reader = InverseFileReader('index.bin')
-    print(inv_reader.search_query_matching_score('Hard'))
+    print(inv_reader.search_query_boolean('Hard & development'))
 
