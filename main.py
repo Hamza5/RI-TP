@@ -3,8 +3,8 @@ import re
 from collections import Counter
 import pickle
 import os.path
-
-
+from math import *
+import  itertools
 class CACMDocument:
     """
     Represent a single CACM document with an ID, title and a summary.
@@ -45,6 +45,39 @@ class InverseFileWriter:
         normalized_summary = QueryPreprocessing.normalize_simple(cacmElem.get_summary())
         all_text = normalized_title + ' ' + normalized_summary
         return Counter(QueryPreprocessing.tokenize_simple(all_text))
+
+class TfIdfFileWriter:
+
+    def __init__(self, cacm, TfIdf_name):
+        self.cacm2 = CACMParser(cacm)
+        self.cacm3 = CACMParser(cacm)
+       
+        self.nember_docs = len(list(self.cacm3))
+        self.InverseFile = InverseFileWriter(self.cacm2, 'inv' + TfIdf_name+'.bin')
+
+        with open('inv' + TfIdf_name+'.bin', 'rb') as inv_file:
+            self.docs_words_frequencies = pickle.load(inv_file)
+        self.Idf_filename = TfIdf_name
+        d = {}
+        for term in self.InverseFile:
+            for doc in self.InverseFile[term]:
+                d [term][doc] = (float(self.InverseFile[term][doc])/max(self.InverseFile[term].values()))*log10(float(self.nember_docs)/len(self.get_word_documents_frequencies(term))+1)
+
+        with open(self.Idf_filename, "wb") as file:
+            pickle.dump(d, file)
+    def get_word_documents_frequencies(self, word):
+        assert isinstance(word, str)
+        docs = {}
+        for doc_id in self.docs_words_frequencies.keys():
+            for w, frequency in self.docs_words_frequencies[doc_id].items():
+                if w == word:
+                    try:
+                        docs[doc_id] += frequency
+                    except KeyError:
+                        docs[doc_id] = frequency
+        return docs
+
+
 
 
 class CACMParser(collections.abc.Iterator):
@@ -247,10 +280,10 @@ class QueryPreprocessing:
 
 if __name__ == '__main__':
     import sys
-    cacm = CACMParser(sys.argv[1])
+    # cacm = CACMParser(sys.argv[1])
     filename = 'index.bin'
     # inv_writer = InverseFileWriter(cacm, filename)
-
+    Tfidf_writer = TfIdfFileWriter(sys.argv[1], filename)
     inv_reader = InverseFileReader(filename)
     test_query = 'User experience and Software engineering'
     print(QueryPreprocessing.normalize_simple(test_query))
