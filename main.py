@@ -2,9 +2,10 @@ import collections.abc
 import re
 from collections import Counter
 import pickle
-import os.path
 from math import *
 import  itertools
+from os.path import join, dirname
+
 class CACMDocument:
     """
     Represent a single CACM document with an ID, title and a summary.
@@ -29,15 +30,30 @@ class CACMDocument:
 
 
 class InverseFileWriter:
+    """
+    Pickle based writer for an inverse file.
+    """
 
     def __init__(self, cacm, inverse_file_name):
-        self.cacm = cacm
+        """
+        Generate an inverse file from a CACM reader.
+        :param cacm: CACMParser instance.
+        :param inverse_file_name: str representing the path of the inverse file.
+        """
         self.inv_filename = inverse_file_name
-        d = {}
-        for element in self.cacm:
-            d[element.get_document_number()] = dict(self.document_frequencies(element))
+        words_documents_frequencies = {}
+        for document in cacm:
+            document_words = self.document_frequencies(document)
+            for word, frequency in document_words.items():
+                if word not in words_documents_frequencies.keys():
+                    words_documents_frequencies[word] = {}
+                try:
+                    words_documents_frequencies[word][document.get_document_number()] += frequency
+                except KeyError:
+                    words_documents_frequencies[word][document.get_document_number()] = frequency
+
         with open(self.inv_filename, "wb") as file:
-            pickle.dump(d, file)
+            pickle.dump(words_documents_frequencies, file)
 
     @staticmethod
     def document_frequencies(cacmElem):
@@ -117,8 +133,21 @@ class InverseFileReader:
     """
 
     def __init__(self, filepath):
+        """
+        Load the inverse file.
+        :param filepath: str representing the path of the inverse file.
+        """
+        self.docs_words_frequencies = {}
         with open(filepath, 'rb') as inv_file:
-            self.docs_words_frequencies = pickle.load(inv_file)
+            words_docs_frequencies = pickle.load(inv_file)
+            for word in words_docs_frequencies.keys():
+                for doc_id, frequency in words_docs_frequencies[word].items():
+                    if doc_id not in self.docs_words_frequencies.keys():
+                        self.docs_words_frequencies[doc_id] = {}
+                    try:
+                        self.docs_words_frequencies[doc_id][word] += frequency
+                    except KeyError:
+                        self.docs_words_frequencies[doc_id][word] = frequency
         self.word_regexp = re.compile(r'\b\w+\b')
 
     def get_documents_count(self):  # Number of documents in the inverse file.
@@ -234,12 +263,15 @@ class InverseFileReader:
 
 
 class QueryPreprocessing:
+    """
+    Contain set of static methods for normalization and tokenizing
+    """
 
     eliminate_regexp = re.compile(r"[^\w'\s]+")
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
-    with open(os.path.join('cacm', 'common_words')) as stop_file:
+    with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
         stop_list = [w.rstrip('\r\n') for w in stop_file]
 
     @staticmethod
@@ -279,12 +311,18 @@ class QueryPreprocessing:
 
 
 if __name__ == '__main__':
-    import sys
-    # cacm = CACMParser(sys.argv[1])
-    filename = 'index.bin'
-    # inv_writer = InverseFileWriter(cacm, filename)
-    Tfidf_writer = TfIdfFileWriter(sys.argv[1], filename)
-    inv_reader = InverseFileReader(filename)
-    test_query = 'User experience and Software engineering'
-    print(QueryPreprocessing.normalize_simple(test_query))
+
+    # import sys
+    # # cacm = CACMParser(sys.argv[1])
+    # filename = 'index.bin'
+    # # inv_writer = InverseFileWriter(cacm, filename)
+    # Tfidf_writer = TfIdfFileWriter(sys.argv[1], filename)
+    # inv_reader = InverseFileReader(filename)
+    # test_query = 'User experience and Software engineering'
+    # print(QueryPreprocessing.normalize_simple(test_query))
+
+    cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
+    inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
+    inv_reader = InverseFileReader('index.bin')
+    print(inv_reader.search_query_matching_score('Hard'))
 

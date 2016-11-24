@@ -3,5 +3,6 @@
 # Except
 !.gitignore
 !*.py
+!*.ui
 !cacm/
 !cacm/*
