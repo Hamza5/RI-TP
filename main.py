@@ -75,22 +75,23 @@ class TfIdfFileWriter:
             self.docs_words_frequencies = pickle.load(inv_file)
         self.Idf_filename = TfIdf_name
         d = {}
-        for term in self.InverseFile:
-            for doc in self.InverseFile[term]:
-                d [term][doc] = (float(self.InverseFile[term][doc])/max(self.InverseFile[term].values()))*log10(float(self.nember_docs)/len(self.get_word_documents_frequencies(term))+1)
-
+        for term in self.docs_words_frequencies.keys():
+            d[term] = {}
+            for doc in self.docs_words_frequencies[term]:
+                d[term][doc] = (float(self.docs_words_frequencies[term][doc])/max(self.docs_words_frequencies[term].values()))*log10(float(self.nember_docs)/len(list(self.get_word_documents_frequencies(term)))+1)
+                self.get_word_documents_frequencies(term)
         with open(self.Idf_filename, "wb") as file:
             pickle.dump(d, file)
     def get_word_documents_frequencies(self, word):
         assert isinstance(word, str)
         docs = {}
-        for doc_id in self.docs_words_frequencies.keys():
-            for w, frequency in self.docs_words_frequencies[doc_id].items():
+        for w in self.docs_words_frequencies.keys():
+            for doc_id in self.docs_words_frequencies[w].keys():
                 if w == word:
                     try:
-                        docs[doc_id] += frequency
+                        docs[doc_id] += self.docs_words_frequencies[w][doc_id]
                     except KeyError:
-                        docs[doc_id] = frequency
+                        docs[doc_id] = self.docs_words_frequencies[w][doc_id]
         return docs
 
 
@@ -312,7 +313,7 @@ class QueryPreprocessing:
 
 if __name__ == '__main__':
 
-    # import sys
+    import sys
     # # cacm = CACMParser(sys.argv[1])
     # filename = 'index.bin'
     # # inv_writer = InverseFileWriter(cacm, filename)
@@ -321,8 +322,9 @@ if __name__ == '__main__':
     # test_query = 'User experience and Software engineering'
     # print(QueryPreprocessing.normalize_simple(test_query))
 
-    cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
-    inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
-    inv_reader = InverseFileReader('index.bin')
-    print(inv_reader.search_query_matching_score('Hard'))
+    # cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
+    # inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
+    Tfidf_writer = TfIdfFileWriter(sys.argv[1], "Tfidfcacm")
+    # inv_reader = InverseFileReader('index.bin')
+    # print(inv_reader.search_query_matching_score('Hard'))
 
