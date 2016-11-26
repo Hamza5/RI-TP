@@ -208,24 +208,30 @@ class InverseFileReader:
         assert isinstance(query, str)
         assert model in ('inner_product', 'dice', 'cos', 'jaccard')
         docs_relevance = {}
-        query_words = set(QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query)))
+        query_words = QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query))
         for doc_id in self.docs_words_frequencies.keys():
             words_frequencies = self.get_document_words_frequencies(doc_id)
-            similarity = len(set(words_frequencies.keys()) & query_words)
+            similarity = 0
+            for word in words_frequencies.keys():
+                if word in query:
+                    similarity += words_frequencies[word]
             if similarity > 0:
                 docs_relevance[doc_id] = similarity
         if model == 'dice':
             for doc_id in docs_relevance.keys():
                 docs_relevance[doc_id] = 2 * docs_relevance[doc_id] / (
-                    len(query_words) + len(self.docs_words_frequencies[doc_id])
+                    len(query_words) + sum(p**2 for p in self.docs_words_frequencies[doc_id].values())
                 )
         elif model == 'cos':
             for doc_id in docs_relevance.keys():
-                docs_relevance[doc_id] /= len(query_words)**(1/2) * len(self.docs_words_frequencies[doc_id])**(1/2)
+                docs_relevance[doc_id] /= (len(query_words) * sum(
+                    p**2 for p in self.docs_words_frequencies[doc_id].values()
+                ))**(1/2)
         elif model == 'jaccard':
             for doc_id in docs_relevance.keys():
-                docs_relevance[doc_id] /= len(query_words) + len(self.docs_words_frequencies[doc_id])\
-                                          - docs_relevance[doc_id]
+                docs_relevance[doc_id] /= len(query_words) + sum(
+                    p**2 for p in self.docs_words_frequencies[doc_id].values()
+                ) - docs_relevance[doc_id]
         return docs_relevance
 
 
@@ -282,5 +288,12 @@ if __name__ == '__main__':
     cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
     inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
     inv_reader = InverseFileReader('index.bin')
-    print(inv_reader.search_query_boolean('Hard & development'))
-
+    query = 'Hard development techniques'
+    results = inv_reader.search_query_vector(query, 'inner_product')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'cos')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'dice')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'jaccard')
+    print(sorted(results.keys(), key=lambda x: results[x]))
