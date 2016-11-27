@@ -5,6 +5,8 @@ import pickle
 from math import log10
 import  itertools
 from os.path import join, dirname
+from nltk import PorterStemmer
+
 
 class CACMDocument:
     """
@@ -241,24 +243,30 @@ class InverseFileReader:
         assert isinstance(query, str)
         assert model in ('inner_product', 'dice', 'cos', 'jaccard')
         docs_relevance = {}
-        query_words = set(QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query)))
+        query_words = QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query))
         for doc_id in self.docs_words_frequencies.keys():
             words_frequencies = self.get_document_words_frequencies(doc_id)
-            similarity = len(set(words_frequencies.keys()) & query_words)
+            similarity = 0
+            for word in words_frequencies.keys():
+                if word in query:
+                    similarity += words_frequencies[word]
             if similarity > 0:
                 docs_relevance[doc_id] = similarity
         if model == 'dice':
             for doc_id in docs_relevance.keys():
                 docs_relevance[doc_id] = 2 * docs_relevance[doc_id] / (
-                    len(query_words) + len(self.docs_words_frequencies[doc_id])
+                    len(query_words) + sum(p**2 for p in self.docs_words_frequencies[doc_id].values())
                 )
         elif model == 'cos':
             for doc_id in docs_relevance.keys():
-                docs_relevance[doc_id] /= len(query_words)**(1/2) * len(self.docs_words_frequencies[doc_id])**(1/2)
+                docs_relevance[doc_id] /= (len(query_words) * sum(
+                    p**2 for p in self.docs_words_frequencies[doc_id].values()
+                ))**(1/2)
         elif model == 'jaccard':
             for doc_id in docs_relevance.keys():
-                docs_relevance[doc_id] /= len(query_words) + len(self.docs_words_frequencies[doc_id])\
-                                          - docs_relevance[doc_id]
+                docs_relevance[doc_id] /= len(query_words) + sum(
+                    p**2 for p in self.docs_words_frequencies[doc_id].values()
+                ) - docs_relevance[doc_id]
         return docs_relevance
 
 
@@ -271,6 +279,7 @@ class QueryPreprocessing:
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
+    stemmer = PorterStemmer()
     with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
         stop_list = [w.rstrip('\r\n') for w in stop_file]
 
@@ -279,7 +288,7 @@ class QueryPreprocessing:
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_regexp, ' ', query.lower())
         query = ' '.join(
-            w for w in QueryPreprocessing.tokenize_simple(query)
+            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_simple(query)
             if w not in QueryPreprocessing.stop_list
         )
         return query
@@ -289,7 +298,7 @@ class QueryPreprocessing:
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_boolean_regexp, ' ', query.lower())
         query = ' '.join(
-            w for w in QueryPreprocessing.tokenize_boolean(query)
+            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_boolean(query)
             if w not in QueryPreprocessing.stop_list
         )
         return query
@@ -311,19 +320,15 @@ class QueryPreprocessing:
 
 
 if __name__ == '__main__':
-
-    import sys
-    # # cacm = CACMParser(sys.argv[1])
-    # filename = 'index.bin'
-    # # inv_writer = InverseFileWriter(cacm, filename)
-    # Tfidf_writer = TfIdfFileWriter(sys.argv[1], filename)
-    # inv_reader = InverseFileReader(filename)
-    # test_query = 'User experience and Software engineering'
-    # print(QueryPreprocessing.normalize_simple(test_query))
-
-    # cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
-    # inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
-    Tfidf_writer = TfIdfFileWriter(sys.argv[1], "Tfidfcacm")
-    # inv_reader = InverseFileReader('index.bin')
-    # print(inv_reader.search_query_matching_score('Hard'))
-
+    cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
+    inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
+    inv_reader = InverseFileReader('index.bin')
+    query = 'Hard development techniques'
+    results = inv_reader.search_query_vector(query, 'inner_product')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'cos')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'dice')
+    print(sorted(results.keys(), key=lambda x: results[x]))
+    results = inv_reader.search_query_vector(query, 'jaccard')
+    print(sorted(results.keys(), key=lambda x: results[x]))
