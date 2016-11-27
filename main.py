@@ -2,7 +2,7 @@ import collections.abc
 import re
 from collections import Counter
 import pickle
-from math import *
+from math import log10
 import  itertools
 from os.path import join, dirname
 
@@ -51,10 +51,13 @@ class InverseFileWriter:
                     words_documents_frequencies[word][document.get_document_number()] += frequency
                 except KeyError:
                     words_documents_frequencies[word][document.get_document_number()] = frequency
-
-        with open(self.inv_filename, "wb") as file:
-            pickle.dump(words_documents_frequencies, file)
-
+        if self.inv_filename !="" :
+            with open(self.inv_filename, "wb") as file:
+                pickle.dump(words_documents_frequencies, file)
+        else :
+            self.to_return_inv_file = words_documents_frequencies
+    def get_InverseFile(self):
+        return self.to_return_inv_file
     @staticmethod
     def document_frequencies(cacmElem):
         normalized_title = QueryPreprocessing.normalize_simple(cacmElem.get_title())
@@ -67,18 +70,14 @@ class TfIdfFileWriter:
     def __init__(self, cacm, TfIdf_name):
         self.cacm2 = CACMParser(cacm)
         self.cacm3 = CACMParser(cacm)
-       
         self.nember_docs = len(list(self.cacm3))
-        self.InverseFile = InverseFileWriter(self.cacm2, 'inv' + TfIdf_name+'.bin')
-
-        with open('inv' + TfIdf_name+'.bin', 'rb') as inv_file:
-            self.docs_words_frequencies = pickle.load(inv_file)
+        self.docs_words_frequencies =  InverseFileWriter(self.cacm2,"").get_InverseFile()
         self.Idf_filename = TfIdf_name
         d = {}
         for term in self.docs_words_frequencies.keys():
             d[term] = {}
             for doc in self.docs_words_frequencies[term]:
-                d[term][doc] = (float(self.docs_words_frequencies[term][doc])/max(self.docs_words_frequencies[term].values()))*log10(float(self.nember_docs)/len(list(self.get_word_documents_frequencies(term)))+1)
+                d[term][doc] = (float(self.docs_words_frequencies[term][doc])/max(self.docs_words_frequencies[term].values()))*log10(float(self.nember_docs)/len(list(self.get_word_documents_frequencies(term)))+1)             
                 self.get_word_documents_frequencies(term)
         with open(self.Idf_filename, "wb") as file:
             pickle.dump(d, file)
