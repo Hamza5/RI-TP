@@ -1,11 +1,17 @@
+import sys
+import time
 import collections.abc
 import re
 from collections import Counter
 import pickle
 from math import *
-import  itertools
 from os.path import join, dirname
+
+from PyQt4.QtGui import QFileDialog
+from PyQt4.QtGui import QLabel
 from nltk import PorterStemmer
+from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem
+from MainWindow import Ui_MainWindow
 
 
 class CACMDocument:
@@ -282,7 +288,9 @@ class QueryPreprocessing:
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
     stemmer = PorterStemmer()
     with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
-        stop_list = [w.rstrip('\r\n') for w in stop_file]
+        stop_list = set(w.rstrip('\r\n') for w in stop_file)
+    special_chars_simple = set('.,?!/\\:;*+-="\'#{}[]`@<>&~|')
+    special_chars_boolean = special_chars_simple - set('&~|')
 
     @staticmethod
     def normalize_simple(query):
@@ -290,7 +298,7 @@ class QueryPreprocessing:
         query = re.sub(QueryPreprocessing.eliminate_regexp, ' ', query.lower())
         query = ' '.join(
             QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_simple(query)
-            if w not in QueryPreprocessing.stop_list
+            if w not in (QueryPreprocessing.stop_list | QueryPreprocessing.special_chars_simple)
         )
         return query
 
@@ -300,7 +308,7 @@ class QueryPreprocessing:
         query = re.sub(QueryPreprocessing.eliminate_boolean_regexp, ' ', query.lower())
         query = ' '.join(
             QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_boolean(query)
-            if w not in QueryPreprocessing.stop_list
+            if w not in (QueryPreprocessing.stop_list & QueryPreprocessing.special_chars_boolean)
         )
         return query
 
@@ -320,16 +328,104 @@ class QueryPreprocessing:
         return boolean_query.replace('&', ' and ').replace('|', ' or ').replace('~', ' not ')
 
 
+class MainWindow(QMainWindow, Ui_MainWindow):
+
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+        self.inverse_file_reader = None
+        self.inv_msg_time = 5000  # ms
+
+        self.clearResultsPushButton.clicked.connect(self.clear_results)
+
+        self.vectorSearchPushButton.clicked.connect(self.search_vector)
+        self.booleanSearchPushButton.clicked.connect(self.search_boolean)
+        self.matchingScoreSearchPushButton.clicked.connect(self.search_matching_score)
+
+        self.loadInverseFileLineEdit.textChanged.connect(self.load_inverse_file)
+        self.loadInveseFilePushButton.clicked.connect(self.choose_inverse_file)
+
+        self.resultsTableWidget.setColumnCount(2)
+        self.loadInverseFileLineEdit.setText('inverse.bin')
+
+    def clear_results(self):
+        self.resultsTableWidget.setRowCount(0)
+        self.statusbar.clearMessage()
+
+    def search_vector(self):
+        user_query = self.vectorSearchLineEdit.text()
+        vector_similarity_function = 'inner_product'
+        if self.diceRadioButton.isChecked():
+            vector_similarity_function = 'dice'
+        elif self.cosRadioButton.isChecked():
+            vector_similarity_function = 'cos'
+        elif self.jaccardRadioButton.isChecked():
+            vector_similarity_function = 'jaccard'
+        start = time.perf_counter()
+        docs_frequencies = self.inverse_file_reader.search_query_vector(user_query, vector_similarity_function)
+        end = time.perf_counter()
+        self.clear_results()
+        last_index = 0
+        for doc_id, frequency in docs_frequencies.items():
+            self.resultsTableWidget.insertRow(last_index)
+            self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
+            self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(frequency)))
+            last_index += 1
+        documents_count = len(docs_frequencies)
+        self.statusbar.showMessage(
+            '{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+
+    def search_boolean(self):
+        user_query = self.booleanSearchLineEdit.text()
+        start = time.perf_counter()
+        docs = self.inverse_file_reader.search_query_boolean(user_query)
+        end = time.perf_counter()
+        self.clear_results()
+        last_index = 0
+        for doc_id in docs:
+            self.resultsTableWidget.insertRow(last_index)
+            self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
+            self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(1)))
+            last_index += 1
+        documents_count = len(docs)
+        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+
+    def search_matching_score(self):
+        user_query = self.matchingScoreSearchLineEdit.text()
+        start = time.perf_counter()
+        docs = self.inverse_file_reader.search_query_matching_score(user_query)
+        end = time.perf_counter()
+        self.clear_results()
+        last_index = 0
+        for doc_id, score in docs.items():
+            self.resultsTableWidget.insertRow(last_index)
+            self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
+            self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(score)))
+            last_index += 1
+        documents_count = len(docs)
+        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+
+    def choose_inverse_file(self):
+        file_path = QFileDialog.getOpenFileName(self)
+        if file_path:
+            self.loadInverseFileLineEdit.setText(file_path)
+
+    def load_inverse_file(self):
+        try:
+            start = time.perf_counter()
+            self.inverse_file_reader = InverseFileReader(self.loadInverseFileLineEdit.text())
+            end = time.perf_counter()
+            self.statusbar.showMessage('Fichier inverse chargé en {}s'.format(round(end-start, 4)), self.inv_msg_time)
+        except pickle.PickleError:
+            self.statusbar.showMessage('Le fichier inverse spécifié est invalide !')
+        except OSError:
+            self.statusbar.showMessage('Le fichier inverse spécifié n\'existe pas !')
+
+
 if __name__ == '__main__':
-    cacm_reader = CACMParser(join(dirname(__file__), 'cacm', 'cacm.all'))
-    inv_writer = InverseFileWriter(cacm_reader, 'index.bin')
-    inv_reader = InverseFileReader('index.bin')
-    query = 'Hard development techniques'
-    results = inv_reader.search_query_vector(query, 'inner_product')
-    print(sorted(results.keys(), key=lambda x: results[x]))
-    results = inv_reader.search_query_vector(query, 'cos')
-    print(sorted(results.keys(), key=lambda x: results[x]))
-    results = inv_reader.search_query_vector(query, 'dice')
-    print(sorted(results.keys(), key=lambda x: results[x]))
-    results = inv_reader.search_query_vector(query, 'jaccard')
-    print(sorted(results.keys(), key=lambda x: results[x]))
+
+    app = QApplication(sys.argv)
+    w = MainWindow()
+    w.move(app.desktop().availableGeometry().center() - w.rect().center())  # Center the window on the screen
+    w.show()
+    sys.exit(app.exec())
