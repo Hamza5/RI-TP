@@ -2,16 +2,18 @@ import sys
 import time
 import collections.abc
 import re
-from collections import Counter
 import pickle
+from collections import Counter
 from math import log10
-import  itertools
 from os.path import join, dirname
-
-from PyQt4.QtGui import QFileDialog
-from nltk import PorterStemmer
-from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem
+from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog
 from MainWindow import Ui_MainWindow
+try:
+    from nltk import PorterStemmer
+except ImportError:  # NLTK not found, create a dummy stemmer that does nothing.
+    class PorterStemmer:
+        def stem(self, w):
+            return w
 
 
 class CACMDocument:
@@ -62,16 +64,19 @@ class InverseFileWriter:
         if self.inv_filename !="" :
             with open(self.inv_filename, "wb") as file:
                 pickle.dump(words_documents_frequencies, file)
-        else :
+        else:
             self.to_return_inv_file = words_documents_frequencies
+
     def get_InverseFile(self):
         return self.to_return_inv_file
+
     @staticmethod
     def document_frequencies(cacmElem):
         normalized_title = QueryPreprocessing.normalize_simple(cacmElem.get_title())
         normalized_summary = QueryPreprocessing.normalize_simple(cacmElem.get_summary())
         all_text = normalized_title + ' ' + normalized_summary
         return Counter(QueryPreprocessing.tokenize_simple(all_text))
+
 
 class TfIdfFileWriter:
 
@@ -89,6 +94,7 @@ class TfIdfFileWriter:
                 self.get_word_documents_frequencies(term)
         with open(self.Idf_filename, "wb") as file:
             pickle.dump(d, file)
+
     def get_word_documents_frequencies(self, word):
         assert isinstance(word, str)
         docs = {}
@@ -100,8 +106,6 @@ class TfIdfFileWriter:
                     except KeyError:
                         docs[doc_id] = self.docs_words_frequencies[w][doc_id]
         return docs
-
-
 
 
 class CACMParser(collections.abc.Iterator):
@@ -334,6 +338,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.inverse_file_reader = None
         self.inv_msg_time = 5000  # ms
+        self.inv_default_path = 'inverse.bin'
 
         self.clearResultsPushButton.clicked.connect(self.clear_results)
 
@@ -342,10 +347,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.matchingScoreSearchPushButton.clicked.connect(self.search_matching_score)
 
         self.loadInverseFileLineEdit.textChanged.connect(self.load_inverse_file)
-        self.loadInveseFilePushButton.clicked.connect(self.choose_inverse_file)
+        self.loadInveseFilePushButton.clicked.connect(self.choose_load_inverse_file)
+        self.saveInverseFileGeneratePushButton.clicked.connect(self.generate_inverse_file)
+        self.saveInveseFilePushButton.clicked.connect(self.choose_save_inverse_file)
 
         self.resultsTableWidget.setColumnCount(2)
-        self.loadInverseFileLineEdit.setText('inverse.bin')
+        self.loadInverseFileLineEdit.setText(self.inv_default_path)
+        self.saveInverseFileLineEdit.setText(self.inv_default_path)
 
     def clear_results(self):
         self.resultsTableWidget.setRowCount(0)
@@ -370,9 +378,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(frequency)))
             last_index += 1
-        documents_count = len(docs_frequencies)
-        self.statusbar.showMessage(
-            '{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
     def search_boolean(self):
         user_query = self.booleanSearchLineEdit.text()
@@ -386,8 +392,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(1)))
             last_index += 1
-        documents_count = len(docs)
-        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
     def search_matching_score(self):
         user_query = self.matchingScoreSearchLineEdit.text()
@@ -401,10 +406,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(score)))
             last_index += 1
-        documents_count = len(docs)
-        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(documents_count, round(end-start, 4)))
+        self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
-    def choose_inverse_file(self):
+    def choose_load_inverse_file(self):
         file_path = QFileDialog.getOpenFileName(self)
         if file_path:
             self.loadInverseFileLineEdit.setText(file_path)
@@ -414,12 +418,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             start = time.perf_counter()
             self.inverse_file_reader = InverseFileReader(self.loadInverseFileLineEdit.text())
             end = time.perf_counter()
-            self.statusbar.showMessage('Fichier inverse chargé en {}s'.format(round(end-start, 4)), self.inv_msg_time)
-        except pickle.PickleError:
-            self.statusbar.showMessage('Le fichier inverse spécifié est invalide !')
-        except OSError:
-            self.statusbar.showMessage('Le fichier inverse spécifié n\'existe pas !')
+            self.searchTab.setEnabled(True)
+            self.statusbar.showMessage('Fichier inverse a été chargé en {}s'.format(round(end-start, 4)), self.inv_msg_time)
+        except (pickle.PickleError, OSError) as err:
+            if isinstance(err, OSError):
+                self.statusbar.showMessage('Le fichier inverse spécifié n\'existe pas !')
+            else:
+                self.statusbar.showMessage('Le fichier inverse spécifié est invalide !')
+            self.searchTab.setEnabled(False)
 
+    def choose_save_inverse_file(self):
+        file_path = QFileDialog.getSaveFileName(self)
+        if file_path:
+            self.saveInverseFileLineEdit.setText(file_path)
+
+    def generate_inverse_file(self):
+        try:
+            inverse_file_path = self.saveInverseFileLineEdit.text()
+            start = time.perf_counter()
+            if self.saveInverseFileTfIdfRadioButton.isChecked():
+                TfIdfFileWriter(join(dirname(__file__), 'cacm', 'cacm.all'), inverse_file_path)
+            else:
+                InverseFileWriter(CACMParser(join(dirname(__file__), 'cacm', 'cacm.all')), inverse_file_path)
+            end = time.perf_counter()
+            self.statusbar.showMessage('Fichier inverse a été sauvegardé en {}s'.format(round(end - start, 4)), self.inv_msg_time)
+        except OSError:
+            self.statusbar.showMessage('Le fichier inverse ne peut pas être sauvegardé dans le chemin spécifié !')
 
 if __name__ == '__main__':
 
