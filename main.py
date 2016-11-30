@@ -85,24 +85,9 @@ class TfIdfFileWriter:
         for term in self.docs_words_frequencies.keys():
             d[term] = {}
             for doc in self.docs_words_frequencies[term]:
-                d[term][doc] = (float(self.docs_words_frequencies[term][doc])/max(self.docs_words_frequencies[term].values()))*log10(float(self.nember_docs)/len(list(self.get_word_documents_frequencies(term)))+1)
-                self.get_word_documents_frequencies(term)
+                d[term][doc] = self.docs_words_frequencies[term][doc]/max(self.docs_words_frequencies[term].values()) * log10(self.nember_docs/len(self.docs_words_frequencies[term])+1)
         with open(self.Idf_filename, "wb") as file:
             pickle.dump(d, file)
-    def get_word_documents_frequencies(self, word):
-        assert isinstance(word, str)
-        docs = {}
-        for w in self.docs_words_frequencies.keys():
-            for doc_id in self.docs_words_frequencies[w].keys():
-                if w == word:
-                    try:
-                        docs[doc_id] += self.docs_words_frequencies[w][doc_id]
-                    except KeyError:
-                        docs[doc_id] = self.docs_words_frequencies[w][doc_id]
-        return docs
-
-
-
 
 class CACMParser(collections.abc.Iterator):
     """
@@ -422,9 +407,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
 if __name__ == '__main__':
-
-    app = QApplication(sys.argv)
-    w = MainWindow()
-    w.move(app.desktop().availableGeometry().center() - w.rect().center())  # Center the window on the screen
-    w.show()
-    sys.exit(app.exec())
+    TfIdfFileWriter(sys.argv[1],"plumplum")
+#    app = QApplication(sys.argv)
+#    w = MainWindow()
+#    w.move(app.desktop().availableGeometry().center() - w.rect().center())  # Center the window on the screen
+#    w.show()
+#    sys.exit(app.exec())
