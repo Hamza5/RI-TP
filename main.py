@@ -8,12 +8,6 @@ from math import log10
 from os.path import join, dirname
 from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog
 from MainWindow import Ui_MainWindow
-try:
-    from nltk import PorterStemmer
-except ImportError:  # NLTK not found, create a dummy stemmer that does nothing.
-    class PorterStemmer:
-        def stem(self, w):
-            return w
 
 
 class CACMDocument:
@@ -276,19 +270,16 @@ class QueryPreprocessing:
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
-    stemmer = PorterStemmer()
     with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
         stop_list = set(w.rstrip('\r\n') for w in stop_file)
-    special_chars_simple = set('.,?!/\\:;*+-="\'#{}[]`@<>&~|')
-    special_chars_boolean = special_chars_simple - set('&~|')
 
     @staticmethod
     def normalize_simple(query):
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_regexp, ' ', query.lower())
         query = ' '.join(
-            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_simple(query)
-            if w not in (QueryPreprocessing.stop_list | QueryPreprocessing.special_chars_simple)
+            w for w in QueryPreprocessing.tokenize_simple(query)
+            if w not in QueryPreprocessing.stop_list
         )
         return query
 
@@ -297,8 +288,8 @@ class QueryPreprocessing:
         assert isinstance(query, str)
         query = re.sub(QueryPreprocessing.eliminate_boolean_regexp, ' ', query.lower())
         query = ' '.join(
-            QueryPreprocessing.stemmer.stem(w) for w in QueryPreprocessing.tokenize_boolean(query)
-            if w not in (QueryPreprocessing.stop_list & QueryPreprocessing.special_chars_boolean)
+            w for w in QueryPreprocessing.tokenize_boolean(query)
+            if w not in QueryPreprocessing.stop_list
         )
         return query
 
@@ -360,7 +351,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         end = time.perf_counter()
         self.clear_results()
         last_index = 0
-        for doc_id, frequency in docs_frequencies.items():
+        for doc_id in sorted(docs_frequencies.keys(), key=lambda x: docs_frequencies[x], reverse=True):
+            frequency = docs_frequencies[doc_id]
             self.resultsTableWidget.insertRow(last_index)
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(frequency)))
@@ -388,7 +380,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         end = time.perf_counter()
         self.clear_results()
         last_index = 0
-        for doc_id, score in docs.items():
+        for doc_id in sorted(docs.keys(), key=lambda x: docs[x], reverse=True):
+            score = docs[doc_id]
             self.resultsTableWidget.insertRow(last_index)
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(score)))
@@ -433,9 +426,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.statusbar.showMessage('Le fichier inverse ne peut pas être sauvegardé dans le chemin spécifié !')
 
 if __name__ == '__main__':
-    TfIdfFileWriter(sys.argv[1],"plumplum")
-#    app = QApplication(sys.argv)
-#    w = MainWindow()
-#    w.move(app.desktop().availableGeometry().center() - w.rect().center())  # Center the window on the screen
-#    w.show()
-#    sys.exit(app.exec())
+   app = QApplication(sys.argv)
+   w = MainWindow()
+   w.move(app.desktop().availableGeometry().center() - w.rect().center())  # Center the window on the screen
+   w.show()
+   sys.exit(app.exec())
