@@ -5,9 +5,10 @@ import re
 import pickle
 from collections import Counter
 from math import log10
-from os.path import join, dirname
-from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog
+from os.path import join, dirname, isfile
+from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog, QDialog
 from MainWindow import Ui_MainWindow
+from DocumentPropertiesDialog import Ui_DocumentDialog
 
 
 class CACMDocument:
@@ -270,8 +271,12 @@ class QueryPreprocessing:
     eliminate_boolean_regexp = re.compile(r"[^\w'&|~()]+")
     token_simple_regexp = re.compile(r"\s+")
     token_boolean_regexp = re.compile(r"\s+|([&|~()])")
-    with open(join(dirname(__file__), 'cacm', 'common_words')) as stop_file:
-        stop_list = set(w.rstrip('\r\n') for w in stop_file)
+    stop_list = None
+
+    @staticmethod
+    def load_stop_list(path):
+        with open(path) as stop_file:
+            QueryPreprocessing.stop_list = set(w.rstrip('\r\n') for w in stop_file)
 
     @staticmethod
     def normalize_simple(query):
@@ -317,6 +322,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.inverse_file_reader = None
         self.inv_msg_time = 5000  # ms
         self.inv_default_path = 'inverse.bin'
+        self.cacm_all_default_path = join(dirname(__file__), 'cacm', 'cacm.all')
+        self.common_words_default_path = join(dirname(__file__), 'cacm', 'common_words')
+        self.query_default_path = join(dirname(__file__), 'cacm', 'query.text')
+        self.qrels_default_path = join(dirname(__file__), 'cacm', 'qrels.text')
 
         self.clearResultsPushButton.clicked.connect(self.clear_results)
 
@@ -324,12 +333,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.booleanSearchPushButton.clicked.connect(self.search_boolean)
         self.matchingScoreSearchPushButton.clicked.connect(self.search_matching_score)
 
+        self.cacmAllFileLineEdit.textChanged.connect(self.check_cacm_all)
+        self.commonWordsFileLineEdit.textChanged.connect(self.check_common_words)
+        self.queryFileLineEdit.textChanged.connect(self.check_query)
+        self.qrelsFileLineEdit.textChanged.connect(self.check_qrels)
         self.loadInverseFileLineEdit.textChanged.connect(self.load_inverse_file)
         self.loadInveseFilePushButton.clicked.connect(self.choose_load_inverse_file)
         self.saveInverseFileGeneratePushButton.clicked.connect(self.generate_inverse_file)
         self.saveInveseFilePushButton.clicked.connect(self.choose_save_inverse_file)
 
+        self.resultsTableWidget.itemDoubleClicked.connect(self.show_document)
+
         self.resultsTableWidget.setColumnCount(2)
+        self.cacmAllFileLineEdit.setText(self.cacm_all_default_path)
+        self.commonWordsFileLineEdit.setText(self.common_words_default_path)
+        self.qrelsFileLineEdit.setText(self.qrels_default_path)
+        self.queryFileLineEdit.setText(self.query_default_path)
         self.loadInverseFileLineEdit.setText(self.inv_default_path)
         self.saveInverseFileLineEdit.setText(self.inv_default_path)
 
@@ -357,6 +376,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(frequency)))
             last_index += 1
+        self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
     def search_boolean(self):
@@ -371,6 +391,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(1)))
             last_index += 1
+        self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
     def search_matching_score(self):
@@ -386,6 +407,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.resultsTableWidget.setItem(last_index, 0, QTableWidgetItem(str(doc_id)))
             self.resultsTableWidget.setItem(last_index, 1, QTableWidgetItem(str(score)))
             last_index += 1
+        self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
 
     def choose_load_inverse_file(self):
@@ -394,11 +416,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.loadInverseFileLineEdit.setText(file_path)
 
     def load_inverse_file(self):
+        font = self.loadInverseFileLineEdit.font()
         try:
             start = time.perf_counter()
             self.inverse_file_reader = InverseFileReader(self.loadInverseFileLineEdit.text())
             end = time.perf_counter()
             self.searchTab.setEnabled(True)
+            font.setStrikeOut(False)
             self.statusbar.showMessage('Fichier inverse a été chargé en {}s'.format(round(end-start, 4)), self.inv_msg_time)
         except (pickle.PickleError, OSError) as err:
             if isinstance(err, OSError):
@@ -406,6 +430,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             else:
                 self.statusbar.showMessage('Le fichier inverse spécifié est invalide !')
             self.searchTab.setEnabled(False)
+            font.setStrikeOut(True)
+        self.loadInverseFileLineEdit.setFont(font)
 
     def choose_save_inverse_file(self):
         file_path = QFileDialog.getSaveFileName(self)
@@ -417,13 +443,67 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             inverse_file_path = self.saveInverseFileLineEdit.text()
             start = time.perf_counter()
             if self.saveInverseFileTfIdfRadioButton.isChecked():
-                TfIdfFileWriter(join(dirname(__file__), 'cacm', 'cacm.all'), inverse_file_path)
+                TfIdfFileWriter(self.cacmAllFileLineEdit.text(), inverse_file_path)
             else:
-                InverseFileWriter(CACMParser(join(dirname(__file__), 'cacm', 'cacm.all')), inverse_file_path)
+                InverseFileWriter(CACMParser(self.cacmAllFileLineEdit.text()), inverse_file_path)
             end = time.perf_counter()
             self.statusbar.showMessage('Fichier inverse a été sauvegardé en {}s'.format(round(end - start, 4)), self.inv_msg_time)
         except OSError:
             self.statusbar.showMessage('Le fichier inverse ne peut pas être sauvegardé dans le chemin spécifié !')
+
+    def check_file(self, path):
+        if not isfile(path):
+            self.statusbar.showMessage('Le fichier {} n\'existe pas !'.format(path))
+            return False
+        self.statusbar.clearMessage()
+        return True
+
+    def check_cacm_all(self, path):
+        file_check = self.check_file(path)
+        self.saveInverseFileGeneratePushButton.setEnabled(file_check)
+        font = self.cacmAllFileLineEdit.font()
+        font.setStrikeOut(not file_check)
+        self.cacmAllFileLineEdit.setFont(font)
+
+    def check_common_words(self, path):
+        file_check = self.check_file(path)
+        if file_check:
+            QueryPreprocessing.load_stop_list(path)
+        self.saveInverseFileGeneratePushButton.setEnabled(file_check)
+        font = self.commonWordsFileLineEdit.font()
+        font.setStrikeOut(not file_check)
+        self.commonWordsFileLineEdit.setFont(font)
+
+    def check_query(self, path):
+        font = self.queryFileLineEdit.font()
+        font.setStrikeOut(not self.check_file(path))
+        self.queryFileLineEdit.setFont(font)
+
+    def check_qrels(self, path):
+        font = self.qrelsFileLineEdit.font()
+        font.setStrikeOut(not self.check_file(path))
+        self.qrelsFileLineEdit.setFont(font)
+
+    class DocumentPropertiesDialog(QDialog, Ui_DocumentDialog):
+
+        def __init__(self, parent=None):
+            super(MainWindow.DocumentPropertiesDialog, self).__init__(parent)
+            self.setupUi(self)
+
+    def show_document(self, item):
+        assert isinstance(item, QTableWidgetItem)
+        if item.column() == 0:
+            doc_id = int(item.text())
+        else:
+            doc_id = int(item.tableWidget().item(item.row(), 0).text())
+        dialog = MainWindow.DocumentPropertiesDialog(self)
+        dialog.documentNumberLineEdit.setText(str(doc_id))
+        dialog.show()
+        for cacm in CACMParser(self.cacmAllFileLineEdit.text()):  # Not efficient, but saves some memory.
+            if cacm.get_document_number() == doc_id:
+                dialog.documentTitleLineEdit.setText(cacm.get_title())
+                dialog.documentSummaryPlainTextEdit.setPlainText(cacm.get_summary())
+                break
 
 if __name__ == '__main__':
    app = QApplication(sys.argv)

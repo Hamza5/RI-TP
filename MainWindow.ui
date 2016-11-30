@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Projet de recherche d'informations</string>
+   <string>Recherche d'informations - ABBAD &amp; ZEBOUCHI</string>
   </property>
   <property name="locale">
    <locale language="French" country="France"/>
@@ -195,9 +195,27 @@
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <item>
             <widget class="QTableWidget" name="resultsTableWidget">
+             <property name="autoFillBackground">
+              <bool>false</bool>
+             </property>
              <property name="editTriggers">
               <set>QAbstractItemView::NoEditTriggers</set>
              </property>
+             <property name="selectionMode">
+              <enum>QAbstractItemView::SingleSelection</enum>
+             </property>
+             <property name="selectionBehavior">
+              <enum>QAbstractItemView::SelectRows</enum>
+             </property>
+             <property name="sortingEnabled">
+              <bool>true</bool>
+             </property>
+             <attribute name="horizontalHeaderCascadingSectionResizes">
+              <bool>false</bool>
+             </attribute>
+             <attribute name="horizontalHeaderStretchLastSection">
+              <bool>true</bool>
+             </attribute>
              <column>
               <property name="text">
                <string>Document</string>
@@ -213,7 +231,7 @@
            <item>
             <widget class="QPushButton" name="clearResultsPushButton">
              <property name="text">
-              <string>Effacer</string>
+              <string>Effacer les résultats</string>
              </property>
             </widget>
            </item>
@@ -224,9 +242,74 @@
       </widget>
       <widget class="QWidget" name="inverseFileTab">
        <attribute name="title">
-        <string>Fichier inverse</string>
+        <string>Documents et fichier inverse</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_6">
+        <item>
+         <widget class="QGroupBox" name="cacmDocumentsGroupBox">
+          <property name="title">
+           <string>Documents CACM</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="cacmAllFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;cacm.all&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="cacmAllFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="qrelsFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;qrels.text&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="commonWordsFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;common_words&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLineEdit" name="queryFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="commonWordsFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="queryFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;query.text&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QLineEdit" name="qrelsFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
         <item>
          <widget class="QGroupBox" name="loadInverseFileGroupBox">
           <property name="title">
@@ -285,41 +368,41 @@
             </layout>
            </item>
            <item>
-            <layout class="QHBoxLayout" name="saveInvefrseFileChoiceLayout">
-             <item>
-              <widget class="QRadioButton" name="saveInverseFileTfIdfRadioButton">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
-               <property name="text">
-                <string>Tf-Idf</string>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QRadioButton" name="saveInverseFileFrequencyRadioButton">
-               <property name="text">
-                <string>Fréquence</string>
-               </property>
-               <property name="checked">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-            </layout>
+            <widget class="QGroupBox" name="saveInverseFileFormulaGroupBox">
+             <property name="title">
+              <string>Formule de pondération</string>
+             </property>
+             <layout class="QHBoxLayout" name="saveInvefrseFileChoiceLayout">
+              <item>
+               <widget class="QRadioButton" name="saveInverseFileTfIdfRadioButton">
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="text">
+                 <string>Tf-Idf</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="saveInverseFileFrequencyRadioButton">
+                <property name="text">
+                 <string>Fréquence simple</string>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
            </item>
           </layout>
          </widget>
         </item>
        </layout>
-      </widget>
-      <widget class="QWidget" name="settingsTab">
-       <attribute name="title">
-        <string>Paramètres</string>
-       </attribute>
       </widget>
      </widget>
     </item>
