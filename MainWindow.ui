@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>726</width>
-    <height>639</height>
+    <width>733</width>
+    <height>825</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -318,19 +318,77 @@
           <property name="title">
            <string>Charger un fichier inverse</string>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <layout class="QVBoxLayout" name="verticalLayout_10">
            <item>
-            <widget class="QLineEdit" name="loadInverseFileLineEdit">
-             <property name="placeholderText">
-              <string>Chemin du fichier</string>
-             </property>
-            </widget>
+            <layout class="QHBoxLayout" name="horizontalLayout_5">
+             <item>
+              <widget class="QLineEdit" name="loadInverseFileLineEdit">
+               <property name="placeholderText">
+                <string>Chemin du fichier</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="loadInveseFilePushButton">
+               <property name="text">
+                <string>Sélectionner</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
            <item>
-            <widget class="QPushButton" name="loadInveseFilePushButton">
-             <property name="text">
-              <string>Sélectionner</string>
+            <widget class="QGroupBox" name="loadInverseFileSearchGroupBox">
+             <property name="title">
+              <string>Rechercher dans le fichier inverse</string>
              </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_4">
+              <item>
+               <widget class="QGroupBox" name="loadInverseFileSearchWordGroupBox">
+                <property name="title">
+                 <string>Par mot</string>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_8">
+                 <item>
+                  <widget class="QLineEdit" name="loadInverseFileSearchWordLineEdit"/>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="loadInverseFileSearchWordPushButton">
+                   <property name="text">
+                    <string>Rechercher</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <widget class="QGroupBox" name="loadInverseFileSearchDocumentGroupBox">
+                <property name="title">
+                 <string>Par document</string>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_9">
+                 <item>
+                  <widget class="QSpinBox" name="loadInverseFileSearchDocumentSpinBox">
+                   <property name="minimum">
+                    <number>1</number>
+                   </property>
+                   <property name="maximum">
+                    <number>100</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="loadInverseFileSearchDocumentPushButton">
+                   <property name="text">
+                    <string>Rechercher</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
           </layout>
@@ -416,7 +474,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>726</width>
+     <width>733</width>
      <height>37</height>
     </rect>
    </property>

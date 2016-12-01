@@ -9,6 +9,7 @@ from os.path import join, dirname, isfile
 from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog, QDialog
 from MainWindow import Ui_MainWindow
 from DocumentPropertiesDialog import Ui_DocumentDialog
+from InverseFileResultsDialog import Ui_InverseFileResultsDialog
 
 
 class CACMDocument:
@@ -79,7 +80,7 @@ class TfIdfFileWriter:
         self.cacm2 = CACMParser(cacm)
         self.cacm3 = CACMParser(cacm)
         self.nember_docs = len(list(self.cacm3))
-        self.docs_words_frequencies =  InverseFileWriter(self.cacm2,"").get_InverseFile()
+        self.docs_words_frequencies = InverseFileWriter(self.cacm2,"").get_InverseFile()
         self.Idf_filename = TfIdf_name
         d = {}
         for term in self.docs_words_frequencies.keys():
@@ -161,13 +162,6 @@ class InverseFileReader:
         """
         assert isinstance(document_id, int)
         return self.docs_words_frequencies[document_id]
-        # w_f = {}
-        # for word, frequency in self.docs_words_frequencies[document_id].items():
-        #     try:
-        #         w_f[word] += frequency
-        #     except KeyError:
-        #         w_f[word] = frequency
-        # return w_f
 
     def get_word_documents_frequencies(self, word):
         """
@@ -338,6 +332,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.qrelsFileLineEdit.textChanged.connect(self.check_qrels)
         self.loadInverseFileLineEdit.textChanged.connect(self.load_inverse_file)
         self.loadInveseFilePushButton.clicked.connect(self.choose_load_inverse_file)
+        self.loadInverseFileSearchWordPushButton.clicked.connect(self.find_word_inverse_file)
+        self.loadInverseFileSearchDocumentPushButton.clicked.connect(self.find_document_inverse_file)
         self.saveInverseFileGeneratePushButton.clicked.connect(self.generate_inverse_file)
         self.saveInveseFilePushButton.clicked.connect(self.choose_save_inverse_file)
 
@@ -422,12 +418,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             end = time.perf_counter()
             self.searchTab.setEnabled(True)
             font.setStrikeOut(False)
+            self.loadInverseFileSearchGroupBox.setEnabled(True)
             self.statusbar.showMessage('Fichier inverse a été chargé en {}s'.format(round(end-start, 4)), self.inv_msg_time)
+            self.loadInverseFileSearchDocumentSpinBox.setMaximum(self.inverse_file_reader.get_documents_count())
         except (pickle.PickleError, OSError) as err:
             if isinstance(err, OSError):
                 self.statusbar.showMessage('Le fichier inverse spécifié n\'existe pas !')
             else:
                 self.statusbar.showMessage('Le fichier inverse spécifié est invalide !')
+            self.loadInverseFileSearchGroupBox.setEnabled(False)
             self.searchTab.setEnabled(False)
             font.setStrikeOut(True)
         self.loadInverseFileLineEdit.setFont(font)
@@ -503,6 +502,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 dialog.documentTitleLineEdit.setText(cacm.get_title())
                 dialog.documentSummaryPlainTextEdit.setPlainText(cacm.get_summary())
                 break
+
+    class ResultsDialog(QDialog, Ui_InverseFileResultsDialog):
+
+        def __init__(self, parent=None):
+            super(MainWindow.ResultsDialog, self).__init__(parent)
+            self.setupUi(self)
+
+    def find_word_inverse_file(self):
+        word = self.loadInverseFileSearchWordLineEdit.text().lower()
+        docs_frequencies = self.inverse_file_reader.get_word_documents_frequencies(word)
+        results_dialog = MainWindow.ResultsDialog(self)
+        results_dialog.inverseFileResultsTableWidget.setRowCount(len(docs_frequencies))
+        last = 0
+        for doc_id, frequency in docs_frequencies.items():
+            results_dialog.inverseFileResultsTableWidget.setItem(last, 0, QTableWidgetItem(str(doc_id)))
+            results_dialog.inverseFileResultsTableWidget.setItem(last, 1, QTableWidgetItem(str(frequency)))
+            last += 1
+        results_dialog.inverseFileResultsTableWidget.resizeColumnsToContents()
+        results_dialog.show()
+
+    def find_document_inverse_file(self):
+        doc_id = self.loadInverseFileSearchDocumentSpinBox.value()
+        words_frequencies = self.inverse_file_reader.get_document_words_frequencies(doc_id)
+        results_dialog = MainWindow.ResultsDialog(self)
+        results_dialog.inverseFileResultsTableWidget.setRowCount(len(words_frequencies))
+        last = 0
+        for word, frequency in words_frequencies.items():
+            results_dialog.inverseFileResultsTableWidget.setItem(last, 0, QTableWidgetItem(str(word)))
+            results_dialog.inverseFileResultsTableWidget.setItem(last, 1, QTableWidgetItem(str(frequency)))
+            last += 1
+        results_dialog.show()
 
 if __name__ == '__main__':
    app = QApplication(sys.argv)
