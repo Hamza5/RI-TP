@@ -160,13 +160,14 @@ class InverseFileReader:
         :return: dict of words as keys and their frequencies as values in the selected document.
         """
         assert isinstance(document_id, int)
-        w_f = {}
-        for word, frequency in self.docs_words_frequencies[document_id].items():
-            try:
-                w_f[word] += frequency
-            except KeyError:
-                w_f[word] = frequency
-        return w_f
+        return self.docs_words_frequencies[document_id]
+        # w_f = {}
+        # for word, frequency in self.docs_words_frequencies[document_id].items():
+        #     try:
+        #         w_f[word] += frequency
+        #     except KeyError:
+        #         w_f[word] = frequency
+        # return w_f
 
     def get_word_documents_frequencies(self, word):
         """
@@ -199,8 +200,7 @@ class InverseFileReader:
                 try:
                     docs_relevance[doc_id] += word_frequencies[doc_id]
                 except KeyError:
-                    if word_frequencies[doc_id] > 0:
-                        docs_relevance[doc_id] = word_frequencies[doc_id]
+                    docs_relevance[doc_id] = word_frequencies[doc_id]
         return docs_relevance
 
     def search_query_boolean(self, boolean_query):
@@ -237,13 +237,12 @@ class InverseFileReader:
         docs_relevance = {}
         query_words = QueryPreprocessing.tokenize_simple(QueryPreprocessing.normalize_simple(query))
         for doc_id in self.docs_words_frequencies.keys():
-            words_frequencies = self.get_document_words_frequencies(doc_id)
-            similarity = 0
-            for word in words_frequencies.keys():
-                if word in query:
-                    similarity += words_frequencies[word]
-            if similarity > 0:
-                docs_relevance[doc_id] = similarity
+            for word, frequency in self.get_document_words_frequencies(doc_id).items():
+                if word in query_words:
+                    try:
+                        docs_relevance[doc_id] += frequency
+                    except KeyError:
+                        docs_relevance[doc_id] = frequency
         if model == 'dice':
             for doc_id in docs_relevance.keys():
                 docs_relevance[doc_id] = 2 * docs_relevance[doc_id] / (

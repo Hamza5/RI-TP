@@ -145,7 +145,7 @@
                   </sizepolicy>
                  </property>
                  <property name="text">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Les opérateurs booléen : &amp;amp; (et), | (ou), ~ (non).&lt;/p&gt;&lt;p&gt;Les parenthèses peuvent être utilisées pour indiquer la priorité.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Les opérateurs booléens : &amp;amp; (et), | (ou), ~ (non).&lt;/p&gt;&lt;p&gt;Les parenthèses peuvent être utilisées pour indiquer la priorité.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                 </widget>
                </item>
@@ -195,6 +195,9 @@
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <item>
             <widget class="QTableWidget" name="resultsTableWidget">
+             <property name="toolTip">
+              <string>Double-click sur un document pour l'ouvrir</string>
+             </property>
              <property name="autoFillBackground">
               <bool>false</bool>
              </property>
