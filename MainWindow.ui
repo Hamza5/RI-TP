@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>733</width>
-    <height>825</height>
+    <height>745</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -268,13 +268,6 @@
              </property>
             </widget>
            </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="qrelsFileLabel">
-             <property name="text">
-              <string>Fichier &lt;code&gt;qrels.text&lt;/code&gt;</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="0">
             <widget class="QLabel" name="commonWordsFileLabel">
              <property name="text">
@@ -282,29 +275,8 @@
              </property>
             </widget>
            </item>
-           <item row="2" column="1">
-            <widget class="QLineEdit" name="queryFileLineEdit">
-             <property name="placeholderText">
-              <string>Chemin du fichier</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="1">
             <widget class="QLineEdit" name="commonWordsFileLineEdit">
-             <property name="placeholderText">
-              <string>Chemin du fichier</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="queryFileLabel">
-             <property name="text">
-              <string>Fichier &lt;code&gt;query.text&lt;/code&gt;</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="1">
-            <widget class="QLineEdit" name="qrelsFileLineEdit">
              <property name="placeholderText">
               <string>Chemin du fichier</string>
              </property>
@@ -458,6 +430,150 @@
                </widget>
               </item>
              </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="precisionRecalTab">
+       <attribute name="title">
+        <string>Précision et rappel</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_11">
+        <item>
+         <widget class="QGroupBox" name="queryGroupBox">
+          <property name="title">
+           <string>Fichiers de test</string>
+          </property>
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="queryFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;query.text&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="queryFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="qrelsFileLabel">
+             <property name="text">
+              <string>Fichier &lt;code&gt;qrels.text&lt;/code&gt;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="qrelsFileLineEdit">
+             <property name="placeholderText">
+              <string>Chemin du fichier</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QGroupBox" name="precisionRecallGroupBox">
+             <property name="title">
+              <string>Précision et rappel</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_2">
+              <item row="0" column="0">
+               <widget class="QLabel" name="innerProductLabel">
+                <property name="text">
+                 <string>Produit interne</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLineEdit" name="innerProductPrecisionLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLineEdit" name="innerProductRecallLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="diceLabel">
+                <property name="text">
+                 <string>Dice</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLineEdit" name="dicePrecisionLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QLineEdit" name="diceRecallLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="cosLabel">
+                <property name="text">
+                 <string>Cosinus</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLineEdit" name="cosPrecisionLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QLineEdit" name="cosRecallLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="jaccardLabel">
+                <property name="text">
+                 <string>Jaccard</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QLineEdit" name="jaccardPrecisionLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QLineEdit" name="jaccardRecallLineEdit">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QPushButton" name="precisionRecallPushButton">
+             <property name="text">
+              <string>Lancer les testes</string>
+             </property>
             </widget>
            </item>
           </layout>

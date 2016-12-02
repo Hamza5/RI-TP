@@ -144,6 +144,8 @@ class InverseFileReader:
                     except KeyError:
                         self.docs_words_frequencies[doc_id][word] = frequency
         self.word_regexp = re.compile(r'\b\w+\b')
+        self.test_queries = []
+        self.test_relations = []
 
     def get_documents_count(self):  # Number of documents in the inverse file.
         return len(self.docs_words_frequencies)
@@ -328,14 +330,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.cacmAllFileLineEdit.textChanged.connect(self.check_cacm_all)
         self.commonWordsFileLineEdit.textChanged.connect(self.check_common_words)
-        self.queryFileLineEdit.textChanged.connect(self.check_query)
-        self.qrelsFileLineEdit.textChanged.connect(self.check_qrels)
         self.loadInverseFileLineEdit.textChanged.connect(self.load_inverse_file)
         self.loadInveseFilePushButton.clicked.connect(self.choose_load_inverse_file)
         self.loadInverseFileSearchWordPushButton.clicked.connect(self.find_word_inverse_file)
         self.loadInverseFileSearchDocumentPushButton.clicked.connect(self.find_document_inverse_file)
         self.saveInverseFileGeneratePushButton.clicked.connect(self.generate_inverse_file)
         self.saveInveseFilePushButton.clicked.connect(self.choose_save_inverse_file)
+
+        self.queryFileLineEdit.textChanged.connect(self.check_query)
+        self.qrelsFileLineEdit.textChanged.connect(self.check_qrels)
+        self.precisionRecallPushButton.clicked.connect(self.calculate_precision_recall)
 
         self.resultsTableWidget.itemDoubleClicked.connect(self.show_document)
 
@@ -373,6 +377,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             last_index += 1
         self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
+        return docs_frequencies
 
     def search_boolean(self):
         user_query = self.booleanSearchLineEdit.text()
@@ -388,6 +393,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             last_index += 1
         self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
+        return docs
 
     def search_matching_score(self):
         user_query = self.matchingScoreSearchLineEdit.text()
@@ -404,6 +410,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             last_index += 1
         self.resultsTableWidget.resizeColumnsToContents()
         self.statusbar.showMessage('{} documents trouvés. Durée de la recherche : {}s'.format(last_index, round(end-start, 4)))
+        return docs
 
     def choose_load_inverse_file(self):
         file_path = QFileDialog.getOpenFileName(self)
@@ -462,6 +469,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         font = self.cacmAllFileLineEdit.font()
         font.setStrikeOut(not file_check)
         self.cacmAllFileLineEdit.setFont(font)
+        return file_check
 
     def check_common_words(self, path):
         file_check = self.check_file(path)
@@ -471,16 +479,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         font = self.commonWordsFileLineEdit.font()
         font.setStrikeOut(not file_check)
         self.commonWordsFileLineEdit.setFont(font)
+        return file_check
 
     def check_query(self, path):
+        file_check = self.check_file(path)
         font = self.queryFileLineEdit.font()
-        font.setStrikeOut(not self.check_file(path))
+        font.setStrikeOut(not file_check)
         self.queryFileLineEdit.setFont(font)
+        return file_check and (self.inverse_file_reader is not None)
 
     def check_qrels(self, path):
+        file_check = self.check_file(path)
         font = self.qrelsFileLineEdit.font()
-        font.setStrikeOut(not self.check_file(path))
+        font.setStrikeOut(not file_check)
         self.qrelsFileLineEdit.setFont(font)
+        return file_check
 
     class DocumentPropertiesDialog(QDialog, Ui_DocumentDialog):
 
@@ -533,6 +546,98 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             results_dialog.inverseFileResultsTableWidget.setItem(last, 1, QTableWidgetItem(str(frequency)))
             last += 1
         results_dialog.show()
+
+    def load_test_queries(self, path):
+        if self.check_query(path):
+            with open(path) as query_text:
+                file_content = query_text.read()
+                for doc_text in re.split('\.I \d+', file_content)[1:]:
+                    query = re.search('(?<=\.W\n).+(?=\n\.[AN])', doc_text, re.DOTALL).group(0).strip().replace('\n', ' ')
+                    self.inverse_file_reader.test_queries.append(query)
+                return True
+        return False
+
+    def load_query_relations(self, path):
+        if self.check_qrels(path):
+            with open(path) as qrels_text:
+                for line in qrels_text:
+                    query_id, doc_id = line.strip().split(' ')[:2]
+                    try:
+                        self.inverse_file_reader.test_relations[int(query_id)-1].add(int(doc_id))
+                    except IndexError:
+                        self.inverse_file_reader.test_relations.append({int(doc_id)})
+                return True
+        return False
+
+    def calculate_precision_recall(self):
+        self.innerProductPrecisionLineEdit.setText("")
+        self.innerProductRecallLineEdit.setText("")
+        self.dicePrecisionLineEdit.setText("")
+        self.diceRecallLineEdit.setText("")
+        self.cosPrecisionLineEdit.setText("")
+        self.cosRecallLineEdit.setText("")
+        self.jaccardPrecisionLineEdit.setText("")
+        self.jaccardRecallLineEdit.setText("")
+
+        query_loaded = self.load_test_queries(self.queryFileLineEdit.text())
+        qrels_loaded = self.load_query_relations(self.qrelsFileLineEdit.text())
+        if query_loaded and qrels_loaded:
+            precisions = []
+            recalls = []
+            self.innerProductRadioButton.setChecked(True)
+            for i in range(len(self.inverse_file_reader.test_queries)):
+                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
+                results = set(self.search_vector().keys())
+                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
+            avg_precision = sum(precisions) / len(precisions)
+            avg_recall = sum(recalls) / len(recalls)
+            self.innerProductPrecisionLineEdit.setText(str(avg_precision))
+            self.innerProductRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            self.diceRadioButton.setChecked(True)
+            for i in range(len(self.inverse_file_reader.test_queries)):
+                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
+                results = set(self.search_vector().keys())
+                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
+            avg_precision = sum(precisions) / len(precisions)
+            avg_recall = sum(recalls) / len(recalls)
+            self.dicePrecisionLineEdit.setText(str(avg_precision))
+            self.diceRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            self.cosRadioButton.setChecked(True)
+            for i in range(len(self.inverse_file_reader.test_queries)):
+                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
+                results = set(self.search_vector().keys())
+                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
+            avg_precision = sum(precisions) / len(precisions)
+            avg_recall = sum(recalls) / len(recalls)
+            self.cosPrecisionLineEdit.setText(str(avg_precision))
+            self.cosRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            self.jaccardRadioButton.setChecked(True)
+            for i in range(len(self.inverse_file_reader.test_queries)):
+                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
+                results = set(self.search_vector().keys())
+                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
+            avg_precision = sum(precisions) / len(precisions)
+            avg_recall = sum(recalls) / len(recalls)
+            self.jaccardPrecisionLineEdit.setText(str(avg_precision))
+            self.jaccardRecallLineEdit.setText(str(avg_recall))
+
 
 if __name__ == '__main__':
    app = QApplication(sys.argv)
