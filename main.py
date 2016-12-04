@@ -3,10 +3,12 @@ import time
 import collections.abc
 import re
 import pickle
+import statistics
 from collections import Counter
 from math import log10
 from os.path import join, dirname, isfile
 from PyQt4.QtGui import QMainWindow, QApplication, QTableWidgetItem, QFileDialog, QDialog
+from PyQt4.QtCore import QThread
 from MainWindow import Ui_MainWindow
 from DocumentPropertiesDialog import Ui_DocumentDialog
 from InverseFileResultsDialog import Ui_InverseFileResultsDialog
@@ -550,6 +552,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def load_test_queries(self, path):
         if self.check_query(path):
             with open(path) as query_text:
+                self.inverse_file_reader.test_queries = []
                 file_content = query_text.read()
                 for doc_text in re.split('\.I \d+', file_content)[1:]:
                     query = re.search('(?<=\.W\n).+(?=\n\.[AN])', doc_text, re.DOTALL).group(0).strip().replace('\n', ' ')
@@ -560,6 +563,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def load_query_relations(self, path):
         if self.check_qrels(path):
             with open(path) as qrels_text:
+                self.inverse_file_reader.test_relations = []
                 for line in qrels_text:
                     query_id, doc_id = line.strip().split(' ')[:2]
                     try:
@@ -568,6 +572,78 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         self.inverse_file_reader.test_relations.append({int(doc_id)})
                 return True
         return False
+
+    class PrecisionRecallThread(QThread):
+
+        def __init__(self, parent=None):
+            super(MainWindow.PrecisionRecallThread, self).__init__(parent)
+
+        def run(self):
+
+            precisions = []
+            recalls = []
+            for i in range(len(self.parent().inverse_file_reader.test_queries)):
+                results = set(self.parent().inverse_file_reader.search_query_vector(
+                    self.parent().inverse_file_reader.test_queries[i], 'inner_product').keys()
+                )
+                correct_documents_count = len(results & self.parent().inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.parent().inverse_file_reader.test_relations[i]))
+            avg_precision = statistics.mean(precisions)
+            avg_recall = statistics.mean(recalls)
+            self.parent().innerProductPrecisionLineEdit.setText(str(avg_precision))
+            self.parent().innerProductRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            for i in range(len(self.parent().inverse_file_reader.test_queries)):
+                results = set(self.parent().inverse_file_reader.search_query_vector(
+                    self.parent().inverse_file_reader.test_queries[i], 'dice').keys()
+                )
+                correct_documents_count = len(results & self.parent().inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.parent().inverse_file_reader.test_relations[i]))
+            avg_precision = statistics.mean(precisions)
+            avg_recall = statistics.mean(recalls)
+            self.parent().dicePrecisionLineEdit.setText(str(avg_precision))
+            self.parent().diceRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            for i in range(len(self.parent().inverse_file_reader.test_queries)):
+                results = set(self.parent().inverse_file_reader.search_query_vector(
+                    self.parent().inverse_file_reader.test_queries[i], 'cos').keys()
+                )
+                correct_documents_count = len(results & self.parent().inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.parent().inverse_file_reader.test_relations[i]))
+            avg_precision = statistics.mean(precisions)
+            avg_recall = statistics.mean(recalls)
+            self.parent().cosPrecisionLineEdit.setText(str(avg_precision))
+            self.parent().cosRecallLineEdit.setText(str(avg_recall))
+
+            precisions = []
+            recalls = []
+            for i in range(len(self.parent().inverse_file_reader.test_queries)):
+                results = set(self.parent().inverse_file_reader.search_query_vector(
+                    self.parent().inverse_file_reader.test_queries[i], 'jaccard').keys()
+                )
+                correct_documents_count = len(results & self.parent().inverse_file_reader.test_relations[i])
+                precisions.append(correct_documents_count / len(results))
+                recalls.append(correct_documents_count / len(self.parent().inverse_file_reader.test_relations[i]))
+            avg_precision = statistics.mean(precisions)
+            avg_recall = statistics.mean(recalls)
+            self.parent().jaccardPrecisionLineEdit.setText(str(avg_precision))
+            self.parent().jaccardRecallLineEdit.setText(str(avg_recall))
+
+    def before_calculation(self):
+        self.old_tests_button_text = self.precisionRecallPushButton.text()
+        self.precisionRecallPushButton.setText('Calcul en cours, veuillez partientez...')
+        self.precisionRecallPushButton.setEnabled(False)
+
+    def afer_calculation(self):
+        self.precisionRecallPushButton.setEnabled(True)
+        self.precisionRecallPushButton.setText(self.old_tests_button_text)
 
     def calculate_precision_recall(self):
         self.innerProductPrecisionLineEdit.setText("")
@@ -582,61 +658,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         query_loaded = self.load_test_queries(self.queryFileLineEdit.text())
         qrels_loaded = self.load_query_relations(self.qrelsFileLineEdit.text())
         if query_loaded and qrels_loaded:
-            precisions = []
-            recalls = []
-            self.innerProductRadioButton.setChecked(True)
-            for i in range(len(self.inverse_file_reader.test_queries)):
-                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
-                results = set(self.search_vector().keys())
-                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
-                precisions.append(correct_documents_count / len(results))
-                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
-            avg_precision = sum(precisions) / len(precisions)
-            avg_recall = sum(recalls) / len(recalls)
-            self.innerProductPrecisionLineEdit.setText(str(avg_precision))
-            self.innerProductRecallLineEdit.setText(str(avg_recall))
-
-            precisions = []
-            recalls = []
-            self.diceRadioButton.setChecked(True)
-            for i in range(len(self.inverse_file_reader.test_queries)):
-                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
-                results = set(self.search_vector().keys())
-                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
-                precisions.append(correct_documents_count / len(results))
-                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
-            avg_precision = sum(precisions) / len(precisions)
-            avg_recall = sum(recalls) / len(recalls)
-            self.dicePrecisionLineEdit.setText(str(avg_precision))
-            self.diceRecallLineEdit.setText(str(avg_recall))
-
-            precisions = []
-            recalls = []
-            self.cosRadioButton.setChecked(True)
-            for i in range(len(self.inverse_file_reader.test_queries)):
-                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
-                results = set(self.search_vector().keys())
-                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
-                precisions.append(correct_documents_count / len(results))
-                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
-            avg_precision = sum(precisions) / len(precisions)
-            avg_recall = sum(recalls) / len(recalls)
-            self.cosPrecisionLineEdit.setText(str(avg_precision))
-            self.cosRecallLineEdit.setText(str(avg_recall))
-
-            precisions = []
-            recalls = []
-            self.jaccardRadioButton.setChecked(True)
-            for i in range(len(self.inverse_file_reader.test_queries)):
-                self.vectorSearchLineEdit.setText(self.inverse_file_reader.test_queries[i])
-                results = set(self.search_vector().keys())
-                correct_documents_count = len(results & self.inverse_file_reader.test_relations[i])
-                precisions.append(correct_documents_count / len(results))
-                recalls.append(correct_documents_count / len(self.inverse_file_reader.test_relations[i]))
-            avg_precision = sum(precisions) / len(precisions)
-            avg_recall = sum(recalls) / len(recalls)
-            self.jaccardPrecisionLineEdit.setText(str(avg_precision))
-            self.jaccardRecallLineEdit.setText(str(avg_recall))
+            calculation_thread = MainWindow.PrecisionRecallThread(self)
+            calculation_thread.started.connect(self.before_calculation)
+            calculation_thread.finished.connect(self.afer_calculation)
+            calculation_thread.start()
 
 
 if __name__ == '__main__':
