@@ -176,12 +176,10 @@ class InverseFileReader:
         assert isinstance(word, str)
         docs = {}
         for doc_id in self.docs_words_frequencies.keys():
-            for w, frequency in self.docs_words_frequencies[doc_id].items():
-                if w == word:
-                    try:
-                        docs[doc_id] += frequency
-                    except KeyError:
-                        docs[doc_id] = frequency
+            try:
+                docs[doc_id] = self.docs_words_frequencies[doc_id][word]
+            except KeyError:
+                pass
         return docs
 
     def search_query_matching_score(self, query):
